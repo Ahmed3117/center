@@ -72,3 +72,4 @@ class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
             'teacher': obj.course_group.teacher.name,
             'times': list(obj.course_group.times.values('day', 'time'))
         }
+

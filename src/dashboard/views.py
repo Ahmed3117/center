@@ -1,9 +1,18 @@
 from django.shortcuts import render
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
-from accounts.models import Year, TypeEducation, Teacher
+from accounts.models import Student, Year, TypeEducation, Teacher
 from about.models import AboutPage, Feature
+from django.db.models import Count
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from django.db.models import Prefetch
+from courses.models import Course, CourseGroup, CourseGroupSubscription, CourseGroupTime
 from .serializers import (
+    CourseGroupWithTimesSerializer,
+    CourseSerializer,
+    StudentSerializer,
+    SubscriptionSerializer,
     YearSerializer, 
     TypeEducationSerializer, 
     TeacherSerializer,
@@ -45,6 +54,8 @@ class TeacherListCreateView(generics.ListCreateAPIView):
     queryset = Teacher.objects.all()
     serializer_class = TeacherSerializer
     permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['name', 'specialization']
+    filter_backends = [filters.SearchFilter]
 
 class TeacherRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete a teacher instance"""
@@ -110,3 +121,91 @@ class FeatureRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Feature.objects.all()
     serializer_class = FeatureSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+# needed get endpoints
+
+class DashboardStudentsView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = StudentSerializer
+    filterset_fields = ['year', 'type_education', 'active', 'block']
+    
+    def get_queryset(self):
+        return Student.objects.select_related(
+            'year', 'type_education', 'user'
+        ).all()
+
+class DashboardCoursesView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CourseSerializer
+    
+    def get_queryset(self):
+        return Course.objects.select_related(
+            'year', 'type_education'
+        ).prefetch_related(
+            'teachers'
+        ).annotate(
+            groups_count=Count('coursegroup')
+        ).all()
+
+class DashboardCourseGroupsView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CourseGroupWithTimesSerializer
+    filterset_fields = ['course', 'teacher', 'is_active']
+    
+    def get_queryset(self):
+        return CourseGroup.objects.select_related(
+            'course', 'teacher'
+        ).prefetch_related(
+            Prefetch('times', queryset=CourseGroupTime.objects.order_by('day', 'time'))
+        ).all()
+
+class DashboardSubscriptionsView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = SubscriptionSerializer
+    filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
+    
+    def get_queryset(self):
+        return CourseGroupSubscription.objects.select_related(
+            'student', 'student__year', 'student__type_education',
+            'course', 'course__year', 'course__type_education',
+            'course_group', 'course_group__teacher'
+        ).prefetch_related(
+            'course_group__times'
+        ).all()
+
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def dashboard_stats(request):
+    
+    stats = {
+        'students': {
+            'total': Student.objects.count(),
+            'active': Student.objects.filter(active=True).count(),
+            'blocked': Student.objects.filter(block=True).count(),
+        },
+        'teachers': {
+            'total': Teacher.objects.count(),
+        },
+        'courses': {
+            'total': Course.objects.count(),
+            'by_type': list(Course.objects.values('type_education__name').annotate(count=Count('id')))
+        },
+        'groups': {
+            'total': CourseGroup.objects.count(),
+            'active': CourseGroup.objects.filter(is_active=True).count(),
+        },
+        'subscriptions': {
+            'total': CourseGroupSubscription.objects.count(),
+            'confirmed': CourseGroupSubscription.objects.filter(is_confirmed=True).count(),
+            'pending': CourseGroupSubscription.objects.filter(is_confirmed=False).count(),
+        }
+    }
+    return Response(stats)
+
+
+
+
+

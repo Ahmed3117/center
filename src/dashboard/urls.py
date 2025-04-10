@@ -1,5 +1,9 @@
 from django.urls import path
 from .views import (
+    DashboardCourseGroupsView,
+    DashboardCoursesView,
+    DashboardStudentsView,
+    DashboardSubscriptionsView,
     YearListCreateView, 
     YearRetrieveUpdateDestroyView,
     TypeEducationListCreateView,
@@ -8,7 +12,8 @@ from .views import (
     TeacherRetrieveUpdateDestroyView,
     AboutPageView,
     FeatureListCreateView,
-    FeatureRetrieveUpdateDestroyView
+    FeatureRetrieveUpdateDestroyView,
+    dashboard_stats
 )
 
 urlpatterns = [
@@ -30,4 +35,14 @@ urlpatterns = [
     # Feature URLs
     path('features/', FeatureListCreateView.as_view(), name='feature-list-create'),
     path('features/<int:pk>/', FeatureRetrieveUpdateDestroyView.as_view(), name='feature-detail'),
+
+    # needed get endpoints
+    path('stats/', dashboard_stats, name='dashboard-stats'),
+    path('students/', DashboardStudentsView.as_view(), name='dashboard-students'),
+    
+    path('courses/', DashboardCoursesView.as_view(), name='dashboard-courses'),
+    path('coursegroups/', DashboardCourseGroupsView.as_view(), name='dashboard-coursegroups'),
+    path('subscriptions/', DashboardSubscriptionsView.as_view(), name='dashboard-subscriptions'),
+
+
 ] 

@@ -30,6 +30,7 @@ class APIRoot(APIView):
             'accounts': request.build_absolute_uri('accounts/'),
             'about': request.build_absolute_uri('about/'),
             'dashboard': request.build_absolute_uri('dashboard/'),
+            'courses': request.build_absolute_uri('courses/'),
         })
 
 urlpatterns = [
@@ -37,6 +38,7 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('about/', include('about.urls')),
     path('dashboard/', include('dashboard.urls')),
+    path('courses/', include('courses.urls')),
     path('api-auth/', include('rest_framework.urls')),
     path('', APIRoot.as_view(), name='api-root'),
 ]

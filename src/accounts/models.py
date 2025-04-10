@@ -44,6 +44,7 @@ class Teacher(models.Model):
     name = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    promo_video = models.FileField(upload_to='teacher_videos/', blank=True, null=True)
     image = models.ImageField(upload_to='teachers/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

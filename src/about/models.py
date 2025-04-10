@@ -12,7 +12,7 @@ class AboutPage(models.Model):
     def __str__(self):
         return self.title
 
-class Feature(models.Model):
+class Feature(models.Model): 
     title = models.CharField(max_length=200)
     description = models.TextField(max_length=1000,blank=True, null=True)
     image = models.ImageField(upload_to='features/',blank=True, null=True)

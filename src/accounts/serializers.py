@@ -91,7 +91,7 @@ class TeacherSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Teacher
-        fields = ['id', 'user', 'name', 'specialization', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'name', 'specialization', 'description', 'promo_video','image', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
 class TeacherSignInSerializer(serializers.Serializer):
@@ -125,3 +125,11 @@ class TeacherSignInSerializer(serializers.Serializer):
             raise serializers.ValidationError(msg, code='authorization')
         
         return data
+
+
+
+
+
+
+
+

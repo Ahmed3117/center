@@ -79,7 +79,7 @@ class CourseGroupSubscriptionAdmin(admin.ModelAdmin):
     list_display = ('student', 'course', 'teacher', 'group_times', 'is_confirmed', 'confirmed_at')
     list_filter = ('is_confirmed', 'course', 'course_group__teacher')
     search_fields = ('student__name', 'course__title')
-    readonly_fields = ('join_time', 'created_at')
+    readonly_fields = ('created_at',)
     date_hierarchy = 'confirmed_at'
 
     def teacher(self, obj):
@@ -100,7 +100,7 @@ class CourseGroupSubscriptionAdmin(admin.ModelAdmin):
             'fields': ('is_confirmed', 'confirmed_at')
         }),
         ('Timestamps', {
-            'fields': ('join_time', 'created_at'),
+            'fields': ('created_at',),
             'classes': ('collapse',)
         }),
     )

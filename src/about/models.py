@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.utils import timezone
 # Create your models here.
 
 class AboutPage(models.Model):
@@ -26,3 +26,29 @@ class Feature(models.Model):
         ordering = ['title']
         verbose_name = "Feature"
         verbose_name_plural = "Features"
+
+
+
+
+
+class News(models.Model):
+    content = models.TextField()
+    image = models.ImageField(upload_to='news/', blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    from_date = models.DateTimeField(null=True, blank=True)
+    to_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"News {self.id} - {self.content[:50]}..."
+
+    class Meta:
+        verbose_name_plural = "News"
+
+
+
+
+
+
+

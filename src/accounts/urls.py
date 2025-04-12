@@ -14,6 +14,7 @@ urlpatterns = [
     #* < ==============================[ <- Profile  -> ]============================== > ^#
     path("student-profile", views.StudentProfileView.as_view(), name="student_profile"),
     path('teacher-signin/', TeacherSignInView.as_view(), name='teacher-signin'),
+    
 ] 
 
 

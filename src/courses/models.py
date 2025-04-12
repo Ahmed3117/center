@@ -18,6 +18,7 @@ class CourseGroup(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
     capacity = models.PositiveIntegerField()
     is_active = models.BooleanField(default=True)  # New field
+    image = models.ImageField(upload_to='course_groups/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -55,15 +56,11 @@ class CourseGroupSubscription(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     course_group = models.ForeignKey(CourseGroup, on_delete=models.CASCADE)
-    join_time = models.DateTimeField(null=True, blank=True, default=None)
+    # join_time = models.DateTimeField(null=True, blank=True, default=None)
     is_confirmed = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
     
-    def save(self, *args, **kwargs):
-        if not self.join_time:
-            self.join_time = timezone.now()
-        super().save(*args, **kwargs)
     
     def __str__(self):
         return f"{self.student.name} in {self.course_group}"

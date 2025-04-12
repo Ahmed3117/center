@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import AboutPage, Feature
+from .models import AboutPage, Feature, News
 from accounts.models import Teacher
 
 class AboutPageSerializer(serializers.ModelSerializer):
@@ -39,7 +39,7 @@ class TeacherPublicSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Teacher
-        fields = ['id', 'name', 'specialization', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'specialization', 'description','promo_video', 'image', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 class AboutPageWithFeaturesSerializer(serializers.ModelSerializer):
@@ -56,3 +56,14 @@ class AboutPageWithFeaturesSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret['features'] = FeaturePublicSerializer(Feature.objects.all(), many=True).data
         return ret
+    
+
+class NewsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = News
+        fields = ['id', 'content', 'image', 'from_date', 'to_date', 'created_at']
+
+
+
+
+        

@@ -70,6 +70,7 @@ class CourseGroupSerializer(serializers.ModelSerializer):
     def get_has_seats(self, obj):
         return obj.has_seats()
 
+
 class CourseSerializer(serializers.ModelSerializer):
     groups = CourseGroupSerializer(many=True, read_only=True)
     teachers = TeacherSerializer(many=True, read_only=True)
@@ -98,27 +99,77 @@ class SubscribeToGroupsSerializer(serializers.Serializer):
         return value
 
 class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
-    course_title = serializers.CharField(source='course.title', read_only=True)
-    group_info = serializers.SerializerMethodField(read_only=True)
+    course_data = serializers.SerializerMethodField()
+    group_data = serializers.SerializerMethodField()
+    teacher_data = serializers.SerializerMethodField()
     
     class Meta:
         model = CourseGroupSubscription
         fields = [
-            'id', 
-            'course', 
-            'course_title',
-            'course_group',
-            'group_info',
+            'id',
             'is_confirmed',
-            'confirmed_at'
+            'confirmed_at',
+            'course_data',
+            'group_data',
+            'teacher_data'
         ]
     
-    def get_group_info(self, obj):
+    def get_course_data(self, obj):
         return {
-            'teacher': obj.course_group.teacher.name,
-            'times': list(obj.course_group.times.values('day', 'time'))
+            'id': obj.course.id,
+            'title': obj.course.title,
+            'year': {
+                'id': obj.course.year.id,
+                'name': obj.course.year.name
+            },
+            'type_education': {
+                'id': obj.course.type_education.id,
+                'name': obj.course.type_education.name
+            }
         }
-
+    
+    def get_group_data(self, obj):
+        group = obj.course_group
+        return {
+            'id': group.id,
+            'capacity': group.capacity,
+            'is_active': group.is_active,
+            'times': CourseGroupTimeSerializer(group.times.all(), many=True).data,
+            'confirmed_subscriptions': group.confirmed_subscriptions_count(),
+            'available_capacity': group.available_capacity(),
+            'has_seats': group.has_seats(),
+            'subscription_status': self.get_subscription_status(group)
+        }
+    
+    def get_teacher_data(self, obj):
+        teacher = obj.course_group.teacher
+        return {
+            'id': teacher.id,
+            'name': teacher.name,
+            'image': teacher.image.url if teacher.image else None,
+            'specialization': teacher.specialization,
+            'promo_video': teacher.promo_video or ""
+        }
+    
+    def get_subscription_status(self, group):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            try:
+                student = Student.objects.get(user=request.user)
+                subscription = CourseGroupSubscription.objects.filter(
+                    student=student,
+                    course_group=group
+                ).first()
+                
+                if not subscription:
+                    return "new"
+                elif subscription.is_confirmed:
+                    return "subscribed"
+                else:
+                    return "pending"
+            except (Student.DoesNotExist, AttributeError):
+                return "new"
+        return "new"
 
 class TeacherCourseGroupSerializer(serializers.ModelSerializer):
     times = CourseGroupTimeSerializer(many=True, read_only=True)

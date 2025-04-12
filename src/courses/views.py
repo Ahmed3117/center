@@ -59,6 +59,20 @@ class CourseGroupsView(generics.ListAPIView):
         context['request'] = self.request
         return context
 
+
+class CourseGroupDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CourseGroupSerializer
+    queryset = CourseGroup.objects.all()
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        return CourseGroup.objects.select_related(
+            'teacher', 'course', 'course__year', 'course__type_education'
+        ).prefetch_related(
+            'times'
+        )
+
 class SubscribeToGroupsView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = SubscribeToGroupsSerializer
@@ -179,10 +193,22 @@ class StudentSubscriptionsView(generics.ListAPIView):
     
     def get_queryset(self):
         student = get_object_or_404(Student, user=self.request.user)
-        queryset = CourseGroupSubscription.objects.filter(student=student)
+        queryset = CourseGroupSubscription.objects.filter(
+            student=student
+        ).select_related(
+            'course', 'course__year', 'course__type_education',
+            'course_group', 'course_group__teacher'
+        ).prefetch_related(
+            'course_group__times'
+        )
         
         is_confirmed = self.request.query_params.get('is_confirmed', None)
         if is_confirmed is not None:
             queryset = queryset.filter(is_confirmed=is_confirmed.lower() == 'true')
             
         return queryset
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context

@@ -32,12 +32,19 @@ class AboutPageWithFeaturesView(APIView):
         return Response(serializer.data)
 
 class TeachersPublicView(generics.ListAPIView):
-    """Public API view to list all teachers"""
-    queryset = Teacher.objects.all()
+    """Public API view to list all teachers with optional course filtering"""
     serializer_class = TeacherPublicSerializer
-    permission_classes = []  # Public endpoint, no authentication required
-
-
+    permission_classes = [] 
+    
+    def get_queryset(self):
+        queryset = Teacher.objects.all()
+        
+        # Filter by course if course_id parameter is provided
+        course_id = self.request.query_params.get('course_id')
+        if course_id:
+            queryset = queryset.filter(course__id=course_id).distinct()
+            
+        return queryset
 
 
 class ActiveNewsView(generics.ListAPIView):

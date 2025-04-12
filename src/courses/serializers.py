@@ -133,6 +133,7 @@ class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
             'id': group.id,
             'capacity': group.capacity,
             'is_active': group.is_active,
+            'image': self.context['request'].build_absolute_uri(group.image.url) if group.image else "",
             'times': CourseGroupTimeSerializer(group.times.all(), many=True).data,
             'confirmed_subscriptions': group.confirmed_subscriptions_count(),
             'available_capacity': group.available_capacity(),

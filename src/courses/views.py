@@ -143,15 +143,19 @@ class GetTeacherFullDataView(generics.RetrieveAPIView):
         return context
 
     def get_queryset(self):
-        
         return Teacher.objects.prefetch_related(
             Prefetch(
                 'coursegroup_set',
-                queryset=CourseGroup.objects.select_related('course').prefetch_related('times')
+                queryset=CourseGroup.objects.select_related('course', 'teacher')
+                    .prefetch_related('times')
             ),
             Prefetch(
                 'coursegroup_set__course',
                 queryset=Course.objects.select_related('year', 'type_education')
+            ),
+            Prefetch(
+                'coursegroup_set__coursegroupsubscription_set',
+                queryset=CourseGroupSubscription.objects.select_related('student__user')
             )
         )
 

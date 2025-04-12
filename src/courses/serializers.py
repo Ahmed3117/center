@@ -45,20 +45,19 @@ class CourseGroupSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
+                # Get the student object for the current user
                 student = Student.objects.get(user=request.user)
+                
+                # Check if there's a subscription for this student and course group
                 subscription = CourseGroupSubscription.objects.filter(
                     student=student,
                     course_group=obj
                 ).first()
                 
-                if not subscription:
-                    return "new"
-                elif subscription.is_confirmed:
-                    return "subscribed"
-                else:
-                    return "pending"
-            except (Student.DoesNotExist, AttributeError):
-                return "new"
+                if subscription:
+                    return "subscribed" if subscription.is_confirmed else "pending"
+            except Student.DoesNotExist:
+                pass
         return "new"
     
     def get_confirmed_subscriptions(self, obj):
@@ -203,7 +202,13 @@ class TeacherCourseSerializer(serializers.ModelSerializer):
     def get_groups(self, obj):
         teacher = self.context['teacher']
         groups = obj.coursegroup_set.filter(teacher=teacher)
-        return CourseGroupSerializer(groups, many=True).data
+        
+        # Make sure to pass the request context to the CourseGroupSerializer
+        return CourseGroupSerializer(
+            groups, 
+            many=True,
+            context=self.context  # This passes through the request context
+        ).data
 
 class TeacherFullDataSerializer(serializers.ModelSerializer):
     courses = serializers.SerializerMethodField()

@@ -29,8 +29,6 @@ class Feature(models.Model):
 
 
 
-
-
 class News(models.Model):
     content = models.TextField()
     image = models.ImageField(upload_to='news/', blank=True, null=True)

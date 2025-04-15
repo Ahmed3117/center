@@ -69,7 +69,6 @@ class CourseGroupSerializer(serializers.ModelSerializer):
     def get_has_seats(self, obj):
         return obj.has_seats()
 
-
 class CourseSerializer(serializers.ModelSerializer):
     groups = CourseGroupSerializer(many=True, read_only=True)
     teachers = TeacherSerializer(many=True, read_only=True)
@@ -242,6 +241,8 @@ class TeacherFullDataSerializer(serializers.ModelSerializer):
             many=True,
             context={'teacher': obj, 'request': request}
         ).data
+
+
 
 
 

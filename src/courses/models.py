@@ -64,3 +64,10 @@ class CourseGroupSubscription(models.Model):
     
     def __str__(self):
         return f"{self.student.name} in {self.course_group}"
+    
+
+
+
+
+
+

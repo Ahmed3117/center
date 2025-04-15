@@ -37,6 +37,8 @@ ALLOWED_HOSTS = ['localhost','127.0.0.1','13.39.129.66']
 # Application definition
 
 INSTALLED_APPS = [
+    'admin_interface',
+    'colorfield',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -84,6 +86,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 
 # Database
@@ -97,6 +100,7 @@ DATABASES = {
 }
 
 
+
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql_psycopg2',
@@ -107,6 +111,9 @@ DATABASES = {
 #         'PORT': '5432',
 #     }
 # }
+
+
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -302,4 +309,69 @@ REQUEST_DELAY = 2
 BUILD_NUMBER = "11"
 APP_VERSION = "1.2.2"
 EASY_STREAM_BASE = "http://127.0.0.1:8000/video/video-ready-call-back/"
+
+
+# ^ < ==========================ordering apps and models in the admin========================== >
+from django.contrib import admin
+from django.contrib.admin import AdminSite
+from django.utils.translation import gettext_lazy as _
+
+ADMIN_ORDERING = (
+    ('auth', ('User','Group',)),
+    ('about', (
+        'AboutPage', 'Feature','News',
+    )),
+    ('accounts', (
+        'Year', 'TypeEducation',
+        'Teacher','Student', 
+    )),
+    ('courses', (
+        'Course', 'CourseGroup',
+        'CourseGroupSubscription',
+    )),
+
+    ('admin_interface', ('Theme',)),
+)
+
+
+def get_app_list(self, request, app_label=None):
+    """Reorder the appearance of apps and models in the Django admin."""
+    app_dict = self._build_app_dict(request, app_label)
+    if not app_dict:
+        return
+
+    NEW_ADMIN_ORDERING = []
+    if app_label:
+        for ao in ADMIN_ORDERING:
+            if ao[0] == app_label:
+                NEW_ADMIN_ORDERING.append(ao)
+                break
+
+    if not app_label:
+        for app_key in list(app_dict.keys()):
+            if not any(app_key in ao_app for ao_app in ADMIN_ORDERING):
+                app_dict.pop(app_key)
+
+    app_list = sorted(
+        app_dict.values(), key=lambda x: [ao[0] for ao in ADMIN_ORDERING].index(x['app_label'])
+    )
+
+    for app, ao in zip(app_list, NEW_ADMIN_ORDERING or ADMIN_ORDERING):
+        if app['app_label'] == ao[0]:
+            for model in list(app['models']):
+                if model['object_name'] not in ao[1]:
+                    app['models'].remove(model)
+            app['models'].sort(key=lambda x: ao[1].index(x['object_name']))
+
+    return app_list
+
+# Override the default get_app_list method
+admin.AdminSite.get_app_list = get_app_list
+
+
+
+
+
+
+
 

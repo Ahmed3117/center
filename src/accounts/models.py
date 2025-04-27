@@ -22,7 +22,7 @@ class Student(models.Model):
     user = models.OneToOneField(User,on_delete=models.CASCADE)
     name = models.CharField(max_length=50,blank=True, null=True)
     parent_phone = models.CharField(max_length=11,blank=True, null=True)
-    type_education = models.ForeignKey(TypeEducation, null=True, on_delete=models.SET_NULL)
+    type_education = models.ForeignKey(TypeEducation, null=True, blank=True, on_delete=models.SET_NULL)
     year = models.ForeignKey(Year,null=True, on_delete=models.SET_NULL)
     points = models.IntegerField(default=1)
     division = models.CharField(max_length=50,blank=True, null=True)

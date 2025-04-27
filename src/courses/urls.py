@@ -5,7 +5,8 @@ from .views import (
     StudentCoursesView,
     CourseGroupsView,
     SubscribeToGroupsView,
-    StudentSubscriptionsView
+    StudentSubscriptionsView,
+    UnsubscribeCourseGroupView
 )
 
 urlpatterns = [
@@ -15,4 +16,6 @@ urlpatterns = [
     path('subscribe/', SubscribeToGroupsView.as_view(), name='subscribe-to-groups'),
     path('subscriptions/', StudentSubscriptionsView.as_view(), name='student-subscriptions'),
     path('teachers/<int:id>/full-data/', GetTeacherFullDataView.as_view(), name='teacher-full-data'),
+    #new
+    path('unsubscribe/<int:subscription_id>/', UnsubscribeCourseGroupView.as_view(), name='unsubscribe'),
 ]

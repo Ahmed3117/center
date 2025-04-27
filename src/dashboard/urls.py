@@ -1,9 +1,12 @@
 from django.urls import path
 from .views import (
+    ApplyStudentCodeView,
+    ConfirmSubscriptionsView,
     DashboardCourseGroupsView,
     DashboardCoursesView,
     DashboardStudentsView,
     DashboardSubscriptionsView,
+    SubscriptionListView,
     YearListCreateView, 
     YearRetrieveUpdateDestroyView,
     TypeEducationListCreateView,
@@ -43,6 +46,13 @@ urlpatterns = [
     path('courses/', DashboardCoursesView.as_view(), name='dashboard-courses'),
     path('coursegroups/', DashboardCourseGroupsView.as_view(), name='dashboard-coursegroups'),
     path('subscriptions/', DashboardSubscriptionsView.as_view(), name='dashboard-subscriptions'),
+
+
+    # new
+    
+    path('confirm-subscriptions/', ConfirmSubscriptionsView.as_view(), name='confirm-subscriptions'),
+    path('apply-code/', ApplyStudentCodeView.as_view(), name='apply-code'),
+    path('student-subscriptions/', SubscriptionListView.as_view(), name='subscription-list'),
 
 
 ] 

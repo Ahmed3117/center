@@ -13,6 +13,8 @@ from .serializers import (
 )
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, F, Q
+from rest_framework.views import APIView
+
 
 class StudentCoursesView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -159,8 +161,6 @@ class GetTeacherFullDataView(generics.RetrieveAPIView):
             )
         )
 
-
-
 class StudentSubscriptionsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CourseGroupSubscriptionSerializer
@@ -216,3 +216,57 @@ class StudentSubscriptionsView(generics.ListAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+    
+
+class UnsubscribeCourseGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, subscription_id):
+        try:
+            # Get the student associated with the current user
+            student = Student.objects.get(user=request.user)
+            
+            # Get the subscription and verify ownership
+            subscription = get_object_or_404(
+                CourseGroupSubscription, 
+                id=subscription_id
+            )
+            
+            # Check if the current student owns this subscription
+            if subscription.student != student:
+                return Response(
+                    {"error": "ليس لديك صلاحية لإلغاء هذا الاشتراك."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Check if subscription is not confirmed
+            if subscription.is_confirmed:
+                return Response(
+                    {"error": "لا يمكنك إلغاء الاشتراك في مجموعة تم تأكيدها."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            # Delete the subscription
+            subscription.delete()
+            
+            return Response(
+                {"message": "تم إلغاء الاشتراك بنجاح."},
+                status=status.HTTP_200_OK
+            )
+            
+        except Student.DoesNotExist:
+            return Response(
+                {"error": "لم يتم العثور على ملف الطالب."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+
+
+

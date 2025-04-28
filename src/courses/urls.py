@@ -17,5 +17,5 @@ urlpatterns = [
     path('subscriptions/', StudentSubscriptionsView.as_view(), name='student-subscriptions'),
     path('teachers/<int:id>/full-data/', GetTeacherFullDataView.as_view(), name='teacher-full-data'),
     #new
-    path('unsubscribe/<int:subscription_id>/', UnsubscribeCourseGroupView.as_view(), name='unsubscribe'),
+    path('unsubscribe/group/<int:group_id>/', UnsubscribeCourseGroupView.as_view(), name='unsubscribe-by-group'),
 ]

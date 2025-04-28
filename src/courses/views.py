@@ -221,23 +221,20 @@ class StudentSubscriptionsView(generics.ListAPIView):
 class UnsubscribeCourseGroupView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, subscription_id):
+    def post(self, request, group_id):
         try:
             # Get the student associated with the current user
             student = Student.objects.get(user=request.user)
             
-            # Get the subscription and verify ownership
-            subscription = get_object_or_404(
-                CourseGroupSubscription, 
-                id=subscription_id
-            )
+            # Get the group
+            group = get_object_or_404(CourseGroup, id=group_id)
             
-            # Check if the current student owns this subscription
-            if subscription.student != student:
-                return Response(
-                    {"error": "ليس لديك صلاحية لإلغاء هذا الاشتراك."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+            # Get the subscription for this student and group
+            subscription = get_object_or_404(
+                CourseGroupSubscription,
+                student=student,
+                course_group=group
+            )
             
             # Check if subscription is not confirmed
             if subscription.is_confirmed:
@@ -250,7 +247,12 @@ class UnsubscribeCourseGroupView(APIView):
             subscription.delete()
             
             return Response(
-                {"message": "تم إلغاء الاشتراك بنجاح."},
+                {
+                    "success": True,
+                    "message": "تم إلغاء الاشتراك بنجاح.",
+                    "deleted_subscription_id": subscription.id,
+                    "group_id": group_id
+                },
                 status=status.HTTP_200_OK
             )
             
@@ -261,10 +263,12 @@ class UnsubscribeCourseGroupView(APIView):
             )
         except Exception as e:
             return Response(
-                {"error": str(e)},
+                {
+                    "success": False,
+                    "error": str(e)
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
 
 

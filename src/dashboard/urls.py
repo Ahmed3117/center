@@ -1,11 +1,13 @@
 from django.urls import path
 from .views import (
+    AdminDeleteSubscriptionView,
     ApplyStudentCodeView,
     ConfirmSubscriptionsView,
     DashboardCourseGroupsView,
     DashboardCoursesView,
     DashboardStudentsView,
     DashboardSubscriptionsView,
+    StudentSubscriptionDetailView,
     SubscriptionListView,
     YearListCreateView, 
     YearRetrieveUpdateDestroyView,
@@ -50,9 +52,11 @@ urlpatterns = [
 
     # new
     
-    path('confirm-subscriptions/', ConfirmSubscriptionsView.as_view(), name='confirm-subscriptions'),
     path('apply-code/', ApplyStudentCodeView.as_view(), name='apply-code'),
+    path('confirm-subscriptions/', ConfirmSubscriptionsView.as_view(), name='confirm-subscriptions'),
+    path('subscriptions/<int:subscription_id>/delete/', AdminDeleteSubscriptionView.as_view(), name='admin-delete-subscription'),
     path('student-subscriptions/', SubscriptionListView.as_view(), name='subscription-list'),
+    path('student-subscriptions/<int:student_id>/', StudentSubscriptionDetailView.as_view(), name='student-subscription-detail'),
 
 
 ] 

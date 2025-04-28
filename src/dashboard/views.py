@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
 from accounts.models import Student, Year, TypeEducation, Teacher
@@ -318,28 +318,55 @@ class ConfirmSubscriptionsView(APIView):
             )
 
 
+
+class AdminDeleteSubscriptionView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def delete(self, request, subscription_id):
+        try:
+            # Get the subscription
+            subscription = get_object_or_404(CourseGroupSubscription, id=subscription_id)
+            
+            # Delete the subscription
+            subscription.delete()
+            
+            return Response(
+                {
+                    "success": True,
+                    "message": "تم حذف الاشتراك بنجاح",
+                    "deleted_subscription_id": subscription_id
+                },
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "error": str(e)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+
+
 class SubscriptionListView(APIView):
     # permission_classes = [IsAdminUser]
     pagination_class = CustomPageNumberPagination
 
     def get(self, request):
-        # Get query parameters
         params = request.query_params
         
-        # Base queryset - start with students who have subscriptions
+        # Base queryset
         student_queryset = Student.objects.filter(
             coursegroupsubscription__isnull=False
         ).distinct().select_related(
-            'year'
-        ).prefetch_related(
-            'coursegroupsubscription_set',
-            'coursegroupsubscription_set__course',
-            'coursegroupsubscription_set__course_group',
-            'coursegroupsubscription_set__course_group__teacher',
-            'coursegroupsubscription_set__course_group__times'
+            'year', 'type_education'
         )
 
-        # Apply filters
+        # Apply filters (same as before)
         if 'course_id' in params:
             student_queryset = student_queryset.filter(
                 coursegroupsubscription__course_id=params['course_id']
@@ -362,7 +389,6 @@ class SubscriptionListView(APIView):
             )
         if 'has_unconfirmed_subscriptions' in params:
             if params['has_unconfirmed_subscriptions'].lower() == 'true':
-                # Filter for students with at least one unconfirmed subscription
                 student_queryset = student_queryset.filter(
                     Exists(
                         CourseGroupSubscription.objects.filter(
@@ -372,7 +398,6 @@ class SubscriptionListView(APIView):
                     )
                 )
             else:
-                # Filter for students with NO unconfirmed subscriptions
                 student_queryset = student_queryset.exclude(
                     Exists(
                         CourseGroupSubscription.objects.filter(
@@ -393,19 +418,65 @@ class SubscriptionListView(APIView):
                 Q(coursegroupsubscription__course_group__teacher__name__icontains=search_term)
             ).distinct()
 
-        # Build response data
+        # Annotate with subscription counts
+        student_queryset = student_queryset.annotate(
+            confirmed_count=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_confirmed=True)
+            ),
+            unconfirmed_count=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_confirmed=False)
+            )
+        )
+
+        # Build simplified response
         students_data = []
         for student in student_queryset:
-            # Get all subscriptions for this student
+            students_data.append({
+                'student_id': student.id,
+                'student_name': student.name,
+                'student_code': student.code,
+                'parent_phone': student.parent_phone,
+                'parent_phone': student.parent_phone,  # Duplicate if needed
+                'student_government': student.government,
+                'student_year': student.year.name if student.year else None,
+                'type_education': student.type_education.name if student.type_education else None,
+                'confirmed_subscriptions_count': student.confirmed_count,
+                'unconfirmed_subscriptions_count': student.unconfirmed_count,
+                'has_unconfirmed_subscriptions': student.unconfirmed_count > 0
+            })
+
+        # Pagination
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(students_data, request)
+        
+        return paginator.get_paginated_response(page)
+
+
+class StudentSubscriptionDetailView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def get(self, request, student_id):
+        try:
+            student = Student.objects.select_related(
+                'year', 'type_education'
+            ).prefetch_related(
+                'coursegroupsubscription_set',
+                'coursegroupsubscription_set__course',
+                'coursegroupsubscription_set__course_group',
+                'coursegroupsubscription_set__course_group__teacher',
+                'coursegroupsubscription_set__course_group__times'
+            ).get(id=student_id)
+
             subscriptions = student.coursegroupsubscription_set.all()
             
-            # Split into confirmed/unconfirmed
-            confirmed_subs = [sub for sub in subscriptions if sub.is_confirmed]
-            unconfirmed_subs = [sub for sub in subscriptions if not sub.is_confirmed]
+            # Split subscriptions
+            confirmed_subs = []
+            unconfirmed_subs = []
             
-            # Build subscription data
-            def build_subscription(sub):
-                return {
+            for sub in subscriptions:
+                sub_data = {
                     'subscription_id': sub.id,
                     'course_id': sub.course.id,
                     'course_title': sub.course.title,
@@ -422,42 +493,32 @@ class SubscriptionListView(APIView):
                         } for slot in sub.course_group.times.all()
                     ]
                 }
-            
-            students_data.append({
+                
+                if sub.is_confirmed:
+                    confirmed_subs.append(sub_data)
+                else:
+                    unconfirmed_subs.append(sub_data)
+
+            response_data = {
                 'student_id': student.id,
                 'student_name': student.name,
                 'student_code': student.code,
-                'student_phone': student.parent_phone,
+                'parent_phone': student.parent_phone,
                 'student_government': student.government,
                 'student_year': student.year.name if student.year else None,
+                'type_education': student.type_education.name if student.type_education else None,
                 'confirmed_subscriptions_count': len(confirmed_subs),
                 'unconfirmed_subscriptions_count': len(unconfirmed_subs),
                 'has_unconfirmed_subscriptions': len(unconfirmed_subs) > 0,
-                'confirmed_subscriptions': [build_subscription(sub) for sub in confirmed_subs],
-                'unconfirmed_subscriptions': [build_subscription(sub) for sub in unconfirmed_subs]
-            })
-
-        # Pagination
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(students_data, request)
-
-        return paginator.get_paginated_response({
-            'students': page,
-            'filters': {
-                'course_id': params.get('course_id'),
-                'group_id': params.get('group_id'),
-                'government': params.get('government'),
-                'year_id': params.get('year_id'),
-                'is_confirmed': params.get('is_confirmed'),
-                'has_unconfirmed_subscriptions': params.get('has_unconfirmed_subscriptions'),
-                'search': search_term
+                'confirmed_subscriptions': confirmed_subs,
+                'unconfirmed_subscriptions': unconfirmed_subs
             }
-        })
 
+            return Response(response_data, status=status.HTTP_200_OK)
 
-
-
-
-
-
+        except Student.DoesNotExist:
+            return Response(
+                {'error': 'Student not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 

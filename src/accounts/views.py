@@ -265,6 +265,36 @@ class TeacherSignInView(APIView):
 
 
 
-
+class AdminSignInView(APIView):
+    def post(self, request):
+        serializer = AdminAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user = serializer.validated_data['user']
+        
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Update student jwt_token if exists
+        try:
+            student = user.student
+            student.jwt_token = f"Bearer {str(refresh.access_token)}"
+            student.save()
+        except Student.DoesNotExist:
+            pass
+        
+        return Response({
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_superuser': user.is_superuser,
+                'is_staff': user.is_staff
+            },
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
+        }, status=status.HTTP_200_OK)
 
 

@@ -1,8 +1,11 @@
 from django.urls import path
 from .views import (
+    AdminCreateSubscriptionsView,
     AdminDeleteSubscriptionView,
+    AdminStudentCreateView,
     ApplyStudentCodeView,
     ConfirmSubscriptionsView,
+    CourseGroupListView,
     DashboardCourseGroupsView,
     DashboardCoursesView,
     DashboardStudentsView,
@@ -51,12 +54,14 @@ urlpatterns = [
 
 
     # new
-    
     path('apply-code/', ApplyStudentCodeView.as_view(), name='apply-code'),
     path('confirm-subscriptions/', ConfirmSubscriptionsView.as_view(), name='confirm-subscriptions'),
     path('subscriptions/<int:subscription_id>/delete/', AdminDeleteSubscriptionView.as_view(), name='admin-delete-subscription'),
     path('student-subscriptions/', SubscriptionListView.as_view(), name='subscription-list'),
     path('student-subscriptions/<int:student_id>/', StudentSubscriptionDetailView.as_view(), name='student-subscription-detail'),
+    path('students/create/', AdminStudentCreateView.as_view(), name='admin-create-student'),
+    path('subscriptions/create/', AdminCreateSubscriptionsView.as_view(), name='admin-create-subscriptions'),
+    path('courses/details', CourseGroupListView.as_view(), name='course-group-list'),
 
 
 ] 

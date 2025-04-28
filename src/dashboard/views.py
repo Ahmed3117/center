@@ -17,8 +17,11 @@ from django.utils import timezone
 
 
 from .serializers import (
+    AdminCreateSubscriptionSerializer,
+    AdminStudentCreateSerializer,
     CourseGroupWithTimesSerializer,
     CourseSerializer,
+    CourseSerializerDetail,
     StudentSerializer,
     SubscriptionSerializer,
     YearSerializer, 
@@ -318,7 +321,6 @@ class ConfirmSubscriptionsView(APIView):
             )
 
 
-
 class AdminDeleteSubscriptionView(APIView):
     # permission_classes = [IsAdminUser]
 
@@ -347,9 +349,6 @@ class AdminDeleteSubscriptionView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-
-
 
 
 class SubscriptionListView(APIView):
@@ -412,6 +411,7 @@ class SubscriptionListView(APIView):
         if search_term:
             student_queryset = student_queryset.filter(
                 Q(name__icontains=search_term) |
+                Q(user__username__icontains=search_term) |
                 Q(parent_phone__icontains=search_term) |
                 Q(code__icontains=search_term) |
                 Q(coursegroupsubscription__course__title__icontains=search_term) |
@@ -523,4 +523,147 @@ class StudentSubscriptionDetailView(APIView):
                 {'error': 'Student not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class AdminStudentCreateView(APIView):
+    # permission_classes = [IsAdminUser]
+    
+    def post(self, request):
+        serializer = AdminStudentCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            student = serializer.save()
+            
+            response_data = {
+                'student_id': student.id,
+                'user_id': student.user.id,
+                'username': student.user.username,
+                'email': student.user.email,
+                'first_name': student.user.first_name,
+                'last_name': student.user.last_name,
+                'student_data': {
+                    'name': student.name,
+                    'parent_phone': student.parent_phone,
+                    'code': student.code,
+                    'government': student.government,
+                    'year': student.year.name if student.year else None,
+                    'type_education': student.type_education.name if student.type_education else None,
+                },
+                'message': 'Student created successfully'
+            }
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class AdminCreateSubscriptionsView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = AdminCreateSubscriptionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        student_id = serializer.validated_data['student_id']
+        group_ids = serializer.validated_data['group_ids']
+
+        try:
+            student = get_object_or_404(Student, id=student_id)
+            created_subscriptions = []
+            existing_subscriptions = []
+            failed_groups = []
+
+            for group_id in group_ids:
+                group = get_object_or_404(CourseGroup, id=group_id)
+                
+                # Check if subscription already exists
+                if CourseGroupSubscription.objects.filter(student=student, course_group=group).exists():
+                    existing_subscriptions.append(group_id)
+                    continue
+                
+                try:
+                    # Create confirmed subscription
+                    subscription = CourseGroupSubscription.objects.create(
+                        student=student,
+                        course=group.course,
+                        course_group=group,
+                        is_confirmed=True,
+                        confirmed_at=timezone.now()
+                    )
+                    created_subscriptions.append(subscription.id)
+                except Exception as e:
+                    failed_groups.append({
+                        'group_id': group_id,
+                        'error': str(e)
+                    })
+
+            response_data = {
+                'success': True,
+                'student_id': student.id,
+                'student_name': student.name,
+                'created_subscriptions': created_subscriptions,
+                'existing_subscriptions': existing_subscriptions,
+                'failed_groups': failed_groups,
+                'message': 'Subscription process completed'
+            }
+
+            if not created_subscriptions and not existing_subscriptions and failed_groups:
+                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class CourseGroupListView(APIView):
+    def get(self, request):
+        # Get query parameters
+        year_id = request.query_params.get('year_id')
+        type_education_id = request.query_params.get('type_education_id')
+        search = request.query_params.get('search', '').strip()
+        
+        # Base queryset
+        queryset = Course.objects.select_related(
+            'year', 'type_education'
+        ).prefetch_related(
+            'coursegroup_set',
+            'coursegroup_set__teacher',
+            'coursegroup_set__times'
+        ).order_by('title')
+        
+        # Apply filters
+        if year_id:
+            queryset = queryset.filter(year_id=year_id)
+        if type_education_id:
+            queryset = queryset.filter(type_education_id=type_education_id)
+        
+        # Apply search
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(year__name__icontains=search) |
+                Q(type_education__name__icontains=search) |
+                Q(coursegroup__teacher__name__icontains=search)
+            ).distinct()
+        
+        # Serialize data
+        serializer = CourseSerializerDetail(
+            queryset, 
+            many=True,
+            context={'request': request}
+        )
+        
+        return Response({
+            'courses': serializer.data
+        })
+
+
+
+
+
 

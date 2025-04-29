@@ -14,6 +14,7 @@ class CourseGroupSerializer(serializers.ModelSerializer):
     times = CourseGroupTimeSerializer(many=True, read_only=True)
     teacher_name = serializers.CharField(source='teacher.name', read_only=True)
     teacher_promo_video = serializers.CharField(source='teacher.promo_video', read_only=True)
+    teacher_promo_video_link = serializers.CharField(source='teacher.promo_video_link', read_only=True)
     year_name = serializers.CharField(source='course.year.name', read_only=True)
     course_name = serializers.CharField(source='course.title', read_only=True)
     confirmed_subscriptions = serializers.SerializerMethodField()
@@ -30,6 +31,7 @@ class CourseGroupSerializer(serializers.ModelSerializer):
             'image', 
             'teacher_name', 
             'teacher_promo_video', 
+            'teacher_promo_video_link', 
             'year_name', 
             'course_name', 
             'capacity',
@@ -147,7 +149,8 @@ class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
             'name': teacher.name,
             'image': teacher.image.url if teacher.image else None,
             'specialization': teacher.specialization,
-            'promo_video': teacher.promo_video or ""
+            'promo_video': teacher.promo_video or "",
+            'promo_video_link': teacher.promo_video_link or ""
         }
     
     def get_subscription_status(self, group):
@@ -217,7 +220,7 @@ class TeacherFullDataSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = [
             'id', 'name', 'image', 'specialization',
-            'description', 'promo_video', 'courses'
+            'description', 'promo_video','promo_video_link', 'courses'
         ]
 
     def get_courses(self, obj):

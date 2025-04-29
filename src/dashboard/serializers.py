@@ -26,7 +26,7 @@ class TeacherSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Teacher
-        fields = ['id', 'user', 'username', 'name', 'specialization','promo_video', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'username', 'name', 'specialization','promo_video','promo_video_link', 'description', 'image', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
 class AboutPageSerializer(serializers.ModelSerializer):
@@ -93,17 +93,17 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
 class AdminStudentCreateSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True)
+    username = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=False)
     email = serializers.EmailField(required=False)
     first_name = serializers.CharField(required=False)
     last_name = serializers.CharField(required=False)
-    
+
     class Meta:
         model = Student
         fields = [
             'username', 'password', 'email', 'first_name', 'last_name',
-            'name', 'parent_phone', 'type_education', 'year', 
+            'name', 'parent_phone', 'type_education', 'year',
             'division', 'government', 'code', 'by_code'
         ]
         extra_kwargs = {
@@ -112,7 +112,6 @@ class AdminStudentCreateSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # Extract user data
         user_data = {
             'username': validated_data.pop('username'),
             'password': validated_data.pop('password'),
@@ -120,23 +119,31 @@ class AdminStudentCreateSerializer(serializers.ModelSerializer):
             'first_name': validated_data.pop('first_name', ''),
             'last_name': validated_data.pop('last_name', '')
         }
-        
-        # Create user
-        user = User.objects.create_user(
-            username=user_data['username'],
-            password=user_data['password'],
-            email=user_data['email'],
-            first_name=user_data['first_name'],
-            last_name=user_data['last_name']
-        )
-        
-        # Create student
-        student = Student.objects.create(
-            user=user,
-            **validated_data
-        )
-        
+        user = User.objects.create_user(**user_data)
+        student = Student.objects.create(user=user, **validated_data)
         return student
+
+    def update(self, instance, validated_data):
+        user = instance.user
+
+        # Update user fields if provided
+        user_fields = ['username', 'email', 'first_name', 'last_name']
+        for field in user_fields:
+            if field in validated_data:
+                setattr(user, field, validated_data.pop(field))
+
+        # Handle password separately
+        if 'password' in validated_data:
+            user.set_password(validated_data.pop('password'))
+
+        user.save()
+
+        # Update student fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 
 class AdminCreateSubscriptionSerializer(serializers.Serializer):
@@ -147,18 +154,69 @@ class AdminCreateSubscriptionSerializer(serializers.Serializer):
     )
 
 
+class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(required=False)
+    first_name = serializers.CharField(required=False)
+    last_name = serializers.CharField(required=False)
+
+    class Meta:
+        model = Teacher
+        fields = [
+            'username', 'password', 'email', 'first_name', 'last_name',
+            'name', 'specialization', 'description', 'promo_video', 'promo_video_link', 'image'
+        ]
+
+    def create(self, validated_data):
+        user_data = {
+            'username': validated_data.pop('username'),
+            'password': validated_data.pop('password'),
+            'email': validated_data.pop('email', ''),
+            'first_name': validated_data.pop('first_name', ''),
+            'last_name': validated_data.pop('last_name', '')
+        }
+        user = User.objects.create_user(**user_data)
+        teacher = Teacher.objects.create(user=user, **validated_data)
+        return teacher
+
+    def update(self, instance, validated_data):
+        user = instance.user
+
+        for field in ['username', 'email', 'first_name', 'last_name']:
+            if field in validated_data:
+                setattr(user, field, validated_data.pop(field))
+
+        if 'password' in validated_data:
+            user.set_password(validated_data.pop('password'))
+
+        user.save()
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
+
 
 class CourseGroupSerializer(serializers.ModelSerializer):
     times = CourseGroupTimeSerializer(many=True, read_only=True)
     teacher_name = serializers.CharField(source='teacher.name', read_only=True)
     confirmed_subscriptions = serializers.SerializerMethodField()
     available_capacity = serializers.SerializerMethodField()
+    teacher_image = serializers.SerializerMethodField()
+
+    def get_teacher_image(self, obj):
+        request = self.context.get('request')
+        if obj.teacher.image:
+            return request.build_absolute_uri(obj.teacher.image.url)
+        return None
     
     class Meta:
         model = CourseGroup
         fields = [
             'id', 'capacity', 'is_active', 'image', 
-            'teacher', 'teacher_name', 'times',
+            'teacher', 'teacher_name','teacher_image', 'times',
             'confirmed_subscriptions', 'available_capacity'
         ]
     

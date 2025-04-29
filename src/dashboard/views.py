@@ -19,6 +19,7 @@ from django.utils import timezone
 from .serializers import (
     AdminCreateSubscriptionSerializer,
     AdminStudentCreateSerializer,
+    AdminTeacherCreateUpdateSerializer,
     CourseGroupWithTimesSerializer,
     CourseSerializer,
     CourseSerializerDetail,
@@ -555,6 +556,110 @@ class AdminStudentCreateView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class AdminStudentUpdateView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminStudentCreateSerializer(student, data=request.data, partial=True)
+        if serializer.is_valid():
+            student = serializer.save()
+
+            response_data = {
+                'student_id': student.id,
+                'user_id': student.user.id,
+                'username': student.user.username,
+                'email': student.user.email,
+                'first_name': student.user.first_name,
+                'last_name': student.user.last_name,
+                'student_data': {
+                    'name': student.name,
+                    'parent_phone': student.parent_phone,
+                    'code': student.code,
+                    'government': student.government,
+                    'year': student.year.name if student.year else None,
+                    'type_education': student.type_education.name if student.type_education else None,
+                },
+                'message': 'Student updated successfully'
+            }
+
+            return Response(response_data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminTeacherCreateView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = AdminTeacherCreateUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            teacher = serializer.save()
+
+            response_data = {
+                'teacher_id': teacher.id,
+                'user_id': teacher.user.id,
+                'username': teacher.user.username,
+                'email': teacher.user.email,
+                'first_name': teacher.user.first_name,
+                'last_name': teacher.user.last_name,
+                'teacher_data': {
+                    'name': teacher.name,
+                    'specialization': teacher.specialization,
+                    'description': teacher.description,
+                    'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
+                    'promo_video_link': teacher.promo_video_link,
+                    'image': request.build_absolute_uri(teacher.image.url) if teacher.image else None,
+                },
+                'message': 'Teacher created successfully'
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class AdminTeacherUpdateView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        try:
+            teacher = Teacher.objects.get(pk=pk)
+        except Teacher.DoesNotExist:
+            return Response({'error': 'Teacher not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminTeacherCreateUpdateSerializer(teacher, data=request.data, partial=True)
+        if serializer.is_valid():
+            teacher = serializer.save()
+
+            response_data = {
+                'teacher_id': teacher.id,
+                'user_id': teacher.user.id,
+                'username': teacher.user.username,
+                'email': teacher.user.email,
+                'first_name': teacher.user.first_name,
+                'last_name': teacher.user.last_name,
+                'teacher_data': {
+                    'name': teacher.name,
+                    'specialization': teacher.specialization,
+                    'description': teacher.description,
+                    'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
+                    'promo_video_link': teacher.promo_video_link,
+                    'image': request.build_absolute_uri(teacher.image.url) if teacher.image else None,
+                },
+                'message': 'Teacher updated successfully'
+            }
+
+            return Response(response_data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 class AdminCreateSubscriptionsView(APIView):
@@ -625,6 +730,7 @@ class CourseGroupListView(APIView):
         # Get query parameters
         year_id = request.query_params.get('year_id')
         type_education_id = request.query_params.get('type_education_id')
+        course_id = request.query_params.get('course_id')
         search = request.query_params.get('search', '').strip()
         
         # Base queryset
@@ -641,6 +747,8 @@ class CourseGroupListView(APIView):
             queryset = queryset.filter(year_id=year_id)
         if type_education_id:
             queryset = queryset.filter(type_education_id=type_education_id)
+        if course_id:
+            queryset = queryset.filter(id=course_id)
         
         # Apply search
         if search:
@@ -661,6 +769,90 @@ class CourseGroupListView(APIView):
         return Response({
             'courses': serializer.data
         })
+
+
+
+class TeacherStatsView(APIView):
+    def get(self, request):
+        teachers = Teacher.objects.annotate(
+            group_count=Count('coursegroup', distinct=True),
+            confirmed_subscriptions=Count(
+                'coursegroup__coursegroupsubscription',
+                filter=Q(coursegroup__coursegroupsubscription__is_confirmed=True),
+                distinct=True
+            ),
+            unconfirmed_subscriptions=Count(
+                'coursegroup__coursegroupsubscription',
+                filter=Q(coursegroup__coursegroupsubscription__is_confirmed=False),
+                distinct=True
+            )
+        ).select_related('user').prefetch_related('coursegroup_set')
+
+        data = []
+        for teacher in teachers:
+            data.append({
+                'teacher_id': teacher.id,
+                'name': teacher.name,
+                'specialization': teacher.specialization,
+                'image': teacher.image.url if teacher.image else None,
+                'total_groups': teacher.group_count,
+                'confirmed_subscriptions': teacher.confirmed_subscriptions,
+                'unconfirmed_subscriptions': teacher.unconfirmed_subscriptions,
+            })
+
+        return Response({'teachers': data})
+
+
+
+class TeacherStudentsView(APIView):
+    def get(self, request, teacher_id):
+        try:
+            teacher = Teacher.objects.get(id=teacher_id)
+            
+            # Get confirmed subscriptions
+            confirmed_subs = CourseGroupSubscription.objects.filter(
+                course_group__teacher=teacher,
+                is_confirmed=True
+            ).select_related('student', 'course_group')
+            
+            # Get unconfirmed subscriptions
+            unconfirmed_subs = CourseGroupSubscription.objects.filter(
+                course_group__teacher=teacher,
+                is_confirmed=False
+            ).select_related('student', 'course_group')
+
+            def build_student_data(subscriptions):
+                students = {}
+                for sub in subscriptions:
+                    if sub.student.id not in students:
+                        students[sub.student.id] = {
+                            'student_id': sub.student.id,
+                            'name': sub.student.name,
+                            'code': sub.student.code,
+                            'government': sub.student.government,
+                            'subscriptions': []
+                        }
+                    students[sub.student.id]['subscriptions'].append({
+                        'subscription_id': sub.id,
+                        'course_id': sub.course.id,
+                        'course_title': sub.course.title,
+                        'group_id': sub.course_group.id,
+                        'created_at': sub.created_at,
+                        'confirmed_at': sub.confirmed_at
+                    })
+                return list(students.values())
+
+            response_data = {
+                'teacher_id': teacher.id,
+                'teacher_name': teacher.name,
+                'confirmed_students': build_student_data(confirmed_subs),
+                'unconfirmed_students': build_student_data(unconfirmed_subs)
+            }
+
+            return Response(response_data)
+
+        except Teacher.DoesNotExist:
+            return Response({'error': 'Teacher not found'}, status=404)
 
 
 

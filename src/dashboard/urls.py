@@ -3,6 +3,9 @@ from .views import (
     AdminCreateSubscriptionsView,
     AdminDeleteSubscriptionView,
     AdminStudentCreateView,
+    AdminStudentUpdateView,
+    AdminTeacherCreateView,
+    AdminTeacherUpdateView,
     ApplyStudentCodeView,
     ConfirmSubscriptionsView,
     CourseGroupListView,
@@ -12,6 +15,8 @@ from .views import (
     DashboardSubscriptionsView,
     StudentSubscriptionDetailView,
     SubscriptionListView,
+    TeacherStatsView,
+    TeacherStudentsView,
     YearListCreateView, 
     YearRetrieveUpdateDestroyView,
     TypeEducationListCreateView,
@@ -60,8 +65,14 @@ urlpatterns = [
     path('student-subscriptions/', SubscriptionListView.as_view(), name='subscription-list'),
     path('student-subscriptions/<int:student_id>/', StudentSubscriptionDetailView.as_view(), name='student-subscription-detail'),
     path('students/create/', AdminStudentCreateView.as_view(), name='admin-create-student'),
+    path('students/update/<int:pk>/', AdminStudentUpdateView.as_view(), name='admin-update-student'),
+    path('teachers/create/', AdminTeacherCreateView.as_view(), name='admin-create-student'),
+    path('teachers/update/<int:pk>/', AdminTeacherUpdateView.as_view(), name='admin-update-student'),
     path('subscriptions/create/', AdminCreateSubscriptionsView.as_view(), name='admin-create-subscriptions'),
     path('courses/details', CourseGroupListView.as_view(), name='course-group-list'),
+
+    path('teachers/stats/', TeacherStatsView.as_view(), name='teacher-stats'),
+    path('teachers/<int:teacher_id>/students/', TeacherStudentsView.as_view(), name='teacher-students'),
 
 
 ] 

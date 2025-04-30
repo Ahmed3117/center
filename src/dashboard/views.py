@@ -12,8 +12,12 @@ from accounts.serializers import StudentProfileSerializer
 from courses.models import Course, CourseGroup, CourseGroupSubscription, CourseGroupTime
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAdminUser
-from django.db.models import Q, Exists, OuterRef,Count
+from django.db.models import Q, Exists, OuterRef,Count, Case, When
 from django.utils import timezone
+from django.contrib.auth.models import User
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from django.db.models import F, BooleanField
 
 
 from .serializers import (
@@ -162,14 +166,67 @@ class DashboardCoursesView(generics.ListAPIView):
 class DashboardCourseGroupsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = CourseGroupWithTimesSerializer
-    filterset_fields = ['course', 'teacher', 'is_active']
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    
+    filterset_fields = {
+        'course': ['exact'],
+        'course__year': ['exact'],
+        'course__type_education': ['exact'],
+        'teacher': ['exact'],
+        'is_active': ['exact'],
+        'capacity': ['gte', 'lte'],
+        'times__day': ['exact'],
+    }
+    
+    search_fields = [
+        'course__title',
+        'course__year__name',
+        'course__type_education__name',
+        'teacher__name',
+        'teacher__specialization',
+    ]
     
     def get_queryset(self):
-        return CourseGroup.objects.select_related(
-            'course', 'teacher'
+        queryset = CourseGroup.objects.select_related(
+            'course', 'course__year', 'course__type_education', 'teacher'
         ).prefetch_related(
-            Prefetch('times', queryset=CourseGroupTime.objects.order_by('day', 'time'))
-        ).all()
+            Prefetch('times', queryset=CourseGroupTime.objects.order_by('day', 'time')),
+            'coursegroupsubscription_set'
+        ).annotate(
+            confirmed_subscriptions=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_confirmed=True)
+            ),
+            unconfirmed_subscriptions=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_confirmed=False)
+            ),
+            available_capacity=F('capacity') - Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_confirmed=True)
+            )
+        ).annotate(
+            has_seats=Case(
+                When(available_capacity__gt=0, then=True),
+                default=False,
+                output_field=BooleanField()
+            )
+        )
+        
+        # Custom filters
+        has_seats = self.request.query_params.get('has_seats')
+        if has_seats is not None:
+            if has_seats.lower() == 'true':
+                queryset = queryset.filter(available_capacity__gt=0)
+            else:
+                queryset = queryset.filter(available_capacity__lte=0)
+            
+        min_available = self.request.query_params.get('min_available')
+        if min_available:
+            queryset = queryset.filter(available_capacity__gte=int(min_available))
+            
+        return queryset.order_by('course__title', 'teacher__name')
+
 
 class DashboardSubscriptionsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -528,12 +585,19 @@ class StudentSubscriptionDetailView(APIView):
 
 class AdminStudentCreateView(APIView):
     # permission_classes = [IsAdminUser]
-    
+
     def post(self, request):
+        username = request.data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            return Response(
+                {'username': ['يوجد مستخدم بنفس اسم المستخدم']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = AdminStudentCreateSerializer(data=request.data)
         if serializer.is_valid():
             student = serializer.save()
-            
+
             response_data = {
                 'student_id': student.id,
                 'user_id': student.user.id,
@@ -551,10 +615,11 @@ class AdminStudentCreateView(APIView):
                 },
                 'message': 'Student created successfully'
             }
-            
+
             return Response(response_data, status=status.HTTP_201_CREATED)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class AdminStudentUpdateView(APIView):
     # permission_classes = [IsAdminUser]
@@ -592,10 +657,54 @@ class AdminStudentUpdateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AdminStudentDetailView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        response_data = {
+            'student_id': student.id,
+            'user_id': student.user.id,
+            'username': student.user.username,
+            'email': student.user.email,
+            'first_name': student.user.first_name,
+            'last_name': student.user.last_name,
+            'student_data': {
+                'name': student.name,
+                'parent_phone': student.parent_phone,
+                'code': student.code,
+                'government': student.government,
+                'year': student.year.name if student.year else None,
+                'type_education': student.type_education.name if student.type_education else None,
+            }
+        }
+        return Response(response_data)
+
+    def delete(self, request, pk):
+        try:
+            student = Student.objects.get(pk=pk)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        student.user.delete()  # This also deletes the student due to on_delete=models.CASCADE
+        return Response({'message': 'Student and associated user deleted successfully'})
+
+
 class AdminTeacherCreateView(APIView):
     # permission_classes = [IsAdminUser]
 
     def post(self, request):
+        username = request.data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            return Response(
+                {'username': ['يوجد مستخدم بنفس اسم المستخدم']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = AdminTeacherCreateUpdateSerializer(data=request.data)
         if serializer.is_valid():
             teacher = serializer.save()
@@ -621,7 +730,6 @@ class AdminTeacherCreateView(APIView):
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 class AdminTeacherUpdateView(APIView):
@@ -660,6 +768,41 @@ class AdminTeacherUpdateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class AdminTeacherDetailView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        try:
+            teacher = Teacher.objects.get(pk=pk)
+        except Teacher.DoesNotExist:
+            return Response({'error': 'Teacher not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        response_data = {
+            'teacher_id': teacher.id,
+            'user_id': teacher.user.id,
+            'username': teacher.user.username,
+            'email': teacher.user.email,
+            'first_name': teacher.user.first_name,
+            'last_name': teacher.user.last_name,
+            'teacher_data': {
+                'name': teacher.name,
+                'specialization': teacher.specialization,
+                'description': teacher.description,
+                'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
+                'promo_video_link': teacher.promo_video_link,
+                'image': request.build_absolute_uri(teacher.image.url) if teacher.image else None,
+            }
+        }
+        return Response(response_data)
+
+    def delete(self, request, pk):
+        try:
+            teacher = Teacher.objects.get(pk=pk)
+        except Teacher.DoesNotExist:
+            return Response({'error': 'Teacher not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        teacher.user.delete()  # This also deletes the teacher
+        return Response({'message': 'Teacher and associated user deleted successfully'})
 
 
 class AdminCreateSubscriptionsView(APIView):
@@ -771,7 +914,6 @@ class CourseGroupListView(APIView):
         })
 
 
-
 class TeacherStatsView(APIView):
     def get(self, request):
         teachers = Teacher.objects.annotate(
@@ -801,8 +943,6 @@ class TeacherStatsView(APIView):
             })
 
         return Response({'teachers': data})
-
-
 
 class TeacherStudentsView(APIView):
     def get(self, request, teacher_id):

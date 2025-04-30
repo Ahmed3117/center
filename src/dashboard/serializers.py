@@ -76,10 +76,18 @@ class CourseGroupWithTimesSerializer(serializers.ModelSerializer):
     course = CourseSerializer()
     teacher = TeacherSerializer()
     times = CourseGroupTimeSerializer(many=True)
+    confirmed_subscriptions = serializers.IntegerField(read_only=True)
+    unconfirmed_subscriptions = serializers.IntegerField(read_only=True)
+    available_capacity = serializers.IntegerField(read_only=True)
+    has_seats = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = CourseGroup
-        fields = '__all__'
+        fields = [
+            'id', 'course', 'teacher', 'capacity', 'is_active', 'image',
+            'times', 'confirmed_subscriptions', 'unconfirmed_subscriptions',
+            'available_capacity', 'has_seats', 'created_at', 'updated_at'
+        ]
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):

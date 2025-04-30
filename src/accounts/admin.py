@@ -19,12 +19,12 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(Teacher)
 class TeacherAdmin(admin.ModelAdmin):
-    list_display = ('name', 'specialization', 'created_at', 'updated_at')
+    list_display = ('name', 'specialization','order', 'created_at', 'updated_at')
     search_fields = ('name', 'specialization')
-    ordering = ('created_at',)
+    ordering = ('order','created_at',)
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
-        (None, {'fields': ('user', 'name', 'specialization', 'description')}),
+        (None, {'fields': ('user', 'name', 'specialization', 'description','promo_video_link','order')}),
         ('Media', {'fields': ('promo_video', 'image')}),
     )
 

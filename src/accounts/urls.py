@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import AdminSignInView, TeacherSignInView
+from .views import AdminSignInView, MySubscriptionsView, TeacherSignInView
 
 urlpatterns = [
     #* < ==============================[ <- Auth  -> ]============================== > ^#
@@ -17,6 +17,9 @@ urlpatterns = [
 
 
     path('admin-signin/', AdminSignInView.as_view(), name='admin-signin'),
+
+
+    path('my-subscriptions/', MySubscriptionsView.as_view(), name='my-subscriptions'),
     
 ] 
 

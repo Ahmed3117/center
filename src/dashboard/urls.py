@@ -15,6 +15,7 @@ from .views import (
     DashboardCoursesView,
     DashboardStudentsView,
     DashboardSubscriptionsView,
+    DeclineSubscriptionView,
     StudentSubscriptionDetailView,
     SubscriptionListView,
     TeacherStatsView,
@@ -77,6 +78,6 @@ urlpatterns = [
 
     path('teachers/stats/', TeacherStatsView.as_view(), name='teacher-stats'),
     path('teachers/<int:teacher_id>/students/', TeacherStudentsView.as_view(), name='teacher-students'),
-
+    path('subscriptions/<int:subscription_id>/decline/', DeclineSubscriptionView.as_view(), name='decline-subscription'),
 
 ] 

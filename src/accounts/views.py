@@ -6,8 +6,10 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
+from courses.models import CourseGroupSubscription
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.db.models import Prefetch
 #REST LIB
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -219,7 +221,6 @@ class ResetPasswordView(APIView):
         return Response({"massage": "Password reset successfully.","success":True}, status=status.HTTP_200_OK)
 
 
-#* < ==============================[ <- Profile -> ]============================== > ^#
 
 class StudentProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -262,9 +263,6 @@ class TeacherSignInView(APIView):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-
 class AdminSignInView(APIView):
     def post(self, request):
         serializer = AdminAuthSerializer(data=request.data)
@@ -298,3 +296,84 @@ class AdminSignInView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+#* < ==============================[ <- subscriptions -> ]============================== > ^#
+
+
+
+class MySubscriptionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            # Get the student associated with the current user
+            student = Student.objects.select_related(
+                'year', 'type_education'
+            ).prefetch_related(
+                Prefetch('coursegroupsubscription_set', 
+                        queryset=CourseGroupSubscription.objects.select_related(
+                            'course', 'course_group', 'course_group__teacher'
+                        ).prefetch_related(
+                            'course_group__times'
+                        ))
+            ).get(user=request.user)
+
+            subscriptions = student.coursegroupsubscription_set.all()
+            
+            # Split subscriptions
+            confirmed_subs = []
+            unconfirmed_subs = []
+            declined_subs = []
+            
+            for sub in subscriptions:
+                sub_data = {
+                    'subscription_id': sub.id,
+                    'course_id': sub.course.id,
+                    'course_title': sub.course.title,
+                    'group_id': sub.course_group.id,
+                    'group_capacity': sub.course_group.capacity,
+                    'teacher_id': sub.course_group.teacher.id,
+                    'teacher_name': sub.course_group.teacher.name,
+                    'created_at': sub.created_at,
+                    'confirmed_at': sub.confirmed_at,
+                    'declined_at': sub.declined_at,
+                    'decline_note': sub.decline_note,
+                    'timeslots': [
+                        {
+                            'day': slot.day,
+                            'time': slot.time.strftime('%H:%M')
+                        } for slot in sub.course_group.times.all()
+                    ]
+                }
+                
+                if sub.is_declined:
+                    declined_subs.append(sub_data)
+                elif sub.is_confirmed:
+                    confirmed_subs.append(sub_data)
+                else:
+                    unconfirmed_subs.append(sub_data)
+
+            response_data = {
+                'student_id': student.id,
+                'student_name': student.name,
+                'student_code': student.code,
+                'student_division': student.division,
+                'student_government': student.government,
+                'student_year': student.year.name if student.year else None,
+                'type_education': student.type_education.name if student.type_education else None,
+                'confirmed_subscriptions_count': len(confirmed_subs),
+                'unconfirmed_subscriptions_count': len(unconfirmed_subs),
+                'declined_subscriptions_count': len(declined_subs),
+                'has_unconfirmed_subscriptions': len(unconfirmed_subs) > 0,
+                'has_declined_subscriptions': len(declined_subs) > 0,
+                'confirmed_subscriptions': confirmed_subs,
+                'unconfirmed_subscriptions': unconfirmed_subs,
+                'declined_subscriptions': declined_subs
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Student.DoesNotExist:
+            return Response(
+                {'error': 'Student profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )

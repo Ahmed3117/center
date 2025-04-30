@@ -271,6 +271,3 @@ class UnsubscribeCourseGroupView(APIView):
             )
 
 
-
-
-

@@ -50,10 +50,16 @@ class FeatureSerializer(serializers.ModelSerializer):
 class StudentSerializer(serializers.ModelSerializer):
     year = YearSerializer()
     type_education = TypeEducationSerializer()
-    
+    username = serializers.SerializerMethodField()
+
     class Meta:
         model = Student
-        fields = '__all__'
+        fields = '__all__'  # This includes all Student fields
+        extra_fields = ['username']  # Not required but useful to highlight
+
+    def get_username(self, obj):
+        return obj.user.username
+
 
 
 class CourseSerializer(serializers.ModelSerializer):

@@ -59,19 +59,39 @@ class CourseGroupSubscription(models.Model):
     is_confirmed = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_declined = models.BooleanField(default=False)
+    decline_note = models.TextField(blank=True, null=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.student.name} in {self.course_group}"
     
     def save(self, *args, **kwargs):
-        # 1. If is_confirmed is True and confirmed_at is not set, set confirmed_at to now
-        if self.is_confirmed and self.confirmed_at is None:
-            self.confirmed_at = timezone.now()
-        # 2. If is_confirmed is False, set confirmed_at to None
-        elif not self.is_confirmed:
+        # 1. Handle confirmation timestamp
+        if self.is_confirmed:
+            if self.confirmed_at is None:
+                self.confirmed_at = timezone.now()
+            # 3. If confirming a declined subscription
+            if self.is_declined:
+                self.is_declined = False
+                self.declined_at = None
+                self.decline_note = None
+        else:
             self.confirmed_at = None
         
-        # Call the parent class's save method to persist the changes
+        # 2. Handle decline timestamp
+        if self.is_declined and self.declined_at is None:
+            self.declined_at = timezone.now()
+        elif not self.is_declined:
+            self.declined_at = None
+            self.decline_note = None
+        
+        # Prevent being both confirmed and declined
+        if self.is_confirmed and self.is_declined:
+            self.is_declined = False
+            self.declined_at = None
+            self.decline_note = None
+        
         super().save(*args, **kwargs)
     
 

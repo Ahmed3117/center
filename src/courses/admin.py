@@ -74,13 +74,16 @@ class CourseGroupTimeAdmin(admin.ModelAdmin):
     search_fields = ('course_group__course__title', 'course_group__teacher__name')
     ordering = ('course_group', 'day', 'time')
 
+
+
 @admin.register(CourseGroupSubscription)
 class CourseGroupSubscriptionAdmin(admin.ModelAdmin):
-    list_display = ('student', 'course', 'teacher', 'group_times', 'is_confirmed', 'confirmed_at')
-    list_filter = ('is_confirmed', 'course', 'course_group__teacher')
-    search_fields = ('student__name', 'course__title')
-    readonly_fields = ('created_at',)
+    list_display = ('student', 'course', 'teacher', 'group_times', 'status', 'is_confirmed' ,'is_declined','confirmed_at', 'declined_at')
+    list_filter = ('is_confirmed', 'is_declined', 'course', 'course_group__teacher')
+    search_fields = ('student__name', 'course__title', 'decline_note')
+    readonly_fields = ('created_at', 'confirmed_at', 'declined_at')
     date_hierarchy = 'confirmed_at'
+    list_editable = ('is_confirmed', 'is_declined')
 
     def teacher(self, obj):
         return obj.course_group.teacher
@@ -92,12 +95,26 @@ class CourseGroupSubscriptionAdmin(admin.ModelAdmin):
         return ", ".join([f"{t.get_day_display()} {t.time.strftime('%H:%M')}" for t in times])
     group_times.short_description = "Group Times"
 
+    def status(self, obj):
+        if obj.is_confirmed:
+            return "✅ Confirmed"
+        elif obj.is_declined:
+            return "❌ Declined"
+        return "⏳ Pending"
+    status.short_description = "Status"
+
     fieldsets = (
         (None, {
             'fields': ('student', 'course', 'course_group')
         }),
         ('Status', {
-            'fields': ('is_confirmed', 'confirmed_at')
+            'fields': (
+                'is_confirmed', 
+                'confirmed_at',
+                'is_declined',
+                'decline_note',
+                'declined_at'
+            )
         }),
         ('Timestamps', {
             'fields': ('created_at',),
@@ -105,14 +122,58 @@ class CourseGroupSubscriptionAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['confirm_subscriptions', 'unconfirm_subscriptions']
+    actions = [
+        'confirm_subscriptions',
+        'unconfirm_subscriptions',
+        'decline_subscriptions',
+        'clear_decline_status'
+    ]
 
     def confirm_subscriptions(self, request, queryset):
-        updated = queryset.filter(is_confirmed=False).update(is_confirmed=True, confirmed_at=timezone.now())
+        updated = queryset.filter(is_confirmed=False).update(
+            is_confirmed=True,
+            confirmed_at=timezone.now(),
+            is_declined=False,
+            decline_note=None,
+            declined_at=None
+        )
         self.message_user(request, f"{updated} subscription(s) successfully confirmed.")
-    confirm_subscriptions.short_description = "Confirm selected subscriptions"
+    confirm_subscriptions.short_description = "✅ Confirm selected subscriptions"
 
     def unconfirm_subscriptions(self, request, queryset):
-        updated = queryset.filter(is_confirmed=True).update(is_confirmed=False, confirmed_at=None)
+        updated = queryset.filter(is_confirmed=True).update(
+            is_confirmed=False,
+            confirmed_at=None
+        )
         self.message_user(request, f"{updated} subscription(s) marked as unconfirmed.")
-    unconfirm_subscriptions.short_description = "Unconfirm selected subscriptions"
+    unconfirm_subscriptions.short_description = "⏳ Unconfirm selected subscriptions"
+
+    def decline_subscriptions(self, request, queryset):
+        default_note = "Declined by admin"
+        updated = queryset.filter(is_confirmed=False).update(
+            is_declined=True,
+            decline_note=default_note,
+            declined_at=timezone.now()
+        )
+        self.message_user(request, f"{updated} subscription(s) declined with default note.")
+    decline_subscriptions.short_description = "❌ Decline selected subscriptions"
+
+    def clear_decline_status(self, request, queryset):
+        updated = queryset.filter(is_declined=True).update(
+            is_declined=False,
+            decline_note=None,
+            declined_at=None
+        )
+        self.message_user(request, f"{updated} subscription(s) had decline status cleared.")
+    clear_decline_status.short_description = "🔄 Clear decline status"
+
+    def save_model(self, request, obj, form, change):
+        # Ensure the model's save() method is called to handle timestamps
+        super().save_model(request, obj, form, change)
+
+
+
+
+
+
+

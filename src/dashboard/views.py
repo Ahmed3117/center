@@ -275,7 +275,7 @@ def dashboard_stats(request):
 ################################ new #######################################
 
 class ApplyStudentCodeView(APIView):
-    permission_classes = [IsAdminUser]
+    # permission_classes = [IsAdminUser]
 
     def post(self, request):
         student_id = request.data.get('student_id')
@@ -321,7 +321,7 @@ class ApplyStudentCodeView(APIView):
 
 
 class ConfirmSubscriptionsView(APIView):
-    permission_classes = [IsAdminUser]
+    # permission_classes = [IsAdminUser]
 
     def post(self, request):
         subscription_ids = request.data.get('subscription_ids', [])
@@ -423,7 +423,7 @@ class SubscriptionListView(APIView):
             'year', 'type_education'
         )
 
-        # Apply filters (same as before)
+        # Apply filters
         if 'course_id' in params:
             student_queryset = student_queryset.filter(
                 coursegroupsubscription__course_id=params['course_id']
@@ -450,7 +450,8 @@ class SubscriptionListView(APIView):
                     Exists(
                         CourseGroupSubscription.objects.filter(
                             student_id=OuterRef('id'),
-                            is_confirmed=False
+                            is_confirmed=False,
+                            is_declined=False
                         )
                     )
                 )
@@ -459,7 +460,27 @@ class SubscriptionListView(APIView):
                     Exists(
                         CourseGroupSubscription.objects.filter(
                             student_id=OuterRef('id'),
-                            is_confirmed=False
+                            is_confirmed=False,
+                            is_declined=False
+                        )
+                    )
+                )
+        if 'has_declined_subscriptions' in params:
+            if params['has_declined_subscriptions'].lower() == 'true':
+                student_queryset = student_queryset.filter(
+                    Exists(
+                        CourseGroupSubscription.objects.filter(
+                            student_id=OuterRef('id'),
+                            is_declined=True
+                        )
+                    )
+                )
+            else:
+                student_queryset = student_queryset.exclude(
+                    Exists(
+                        CourseGroupSubscription.objects.filter(
+                            student_id=OuterRef('id'),
+                            is_declined=True
                         )
                     )
                 )
@@ -484,7 +505,12 @@ class SubscriptionListView(APIView):
             ),
             unconfirmed_count=Count(
                 'coursegroupsubscription',
-                filter=Q(coursegroupsubscription__is_confirmed=False)
+                filter=Q(coursegroupsubscription__is_confirmed=False) & 
+                Q(coursegroupsubscription__is_declined=False)
+            ),
+            declined_count=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_declined=True)
             )
         )
 
@@ -497,13 +523,15 @@ class SubscriptionListView(APIView):
                 'student_code': student.code,
                 'student_division': student.division,
                 'student_phone': student.user.username,
-                'parent_phone': student.parent_phone,  # Duplicate if needed
+                'parent_phone': student.parent_phone,
                 'student_government': student.government,
                 'student_year': student.year.name if student.year else None,
                 'type_education': student.type_education.name if student.type_education else None,
                 'confirmed_subscriptions_count': student.confirmed_count,
                 'unconfirmed_subscriptions_count': student.unconfirmed_count,
-                'has_unconfirmed_subscriptions': student.unconfirmed_count > 0
+                'declined_subscriptions_count': student.declined_count,
+                'has_unconfirmed_subscriptions': student.unconfirmed_count > 0,
+                'has_declined_subscriptions': student.declined_count > 0
             })
 
         # Pagination
@@ -521,11 +549,12 @@ class StudentSubscriptionDetailView(APIView):
             student = Student.objects.select_related(
                 'year', 'type_education'
             ).prefetch_related(
-                'coursegroupsubscription_set',
-                'coursegroupsubscription_set__course',
-                'coursegroupsubscription_set__course_group',
-                'coursegroupsubscription_set__course_group__teacher',
-                'coursegroupsubscription_set__course_group__times'
+                Prefetch('coursegroupsubscription_set', 
+                        queryset=CourseGroupSubscription.objects.select_related(
+                            'course', 'course_group', 'course_group__teacher'
+                        ).prefetch_related(
+                            'course_group__times'
+                        ))
             ).get(id=student_id)
 
             subscriptions = student.coursegroupsubscription_set.all()
@@ -533,6 +562,7 @@ class StudentSubscriptionDetailView(APIView):
             # Split subscriptions
             confirmed_subs = []
             unconfirmed_subs = []
+            declined_subs = []
             
             for sub in subscriptions:
                 sub_data = {
@@ -545,6 +575,8 @@ class StudentSubscriptionDetailView(APIView):
                     'teacher_name': sub.course_group.teacher.name,
                     'created_at': sub.created_at,
                     'confirmed_at': sub.confirmed_at,
+                    'declined_at': sub.declined_at,
+                    'decline_note': sub.decline_note,
                     'timeslots': [
                         {
                             'day': slot.day,
@@ -553,7 +585,9 @@ class StudentSubscriptionDetailView(APIView):
                     ]
                 }
                 
-                if sub.is_confirmed:
+                if sub.is_declined:
+                    declined_subs.append(sub_data)
+                elif sub.is_confirmed:
                     confirmed_subs.append(sub_data)
                 else:
                     unconfirmed_subs.append(sub_data)
@@ -569,9 +603,12 @@ class StudentSubscriptionDetailView(APIView):
                 'type_education': student.type_education.name if student.type_education else None,
                 'confirmed_subscriptions_count': len(confirmed_subs),
                 'unconfirmed_subscriptions_count': len(unconfirmed_subs),
+                'declined_subscriptions_count': len(declined_subs),
                 'has_unconfirmed_subscriptions': len(unconfirmed_subs) > 0,
+                'has_declined_subscriptions': len(declined_subs) > 0,
                 'confirmed_subscriptions': confirmed_subs,
-                'unconfirmed_subscriptions': unconfirmed_subs
+                'unconfirmed_subscriptions': unconfirmed_subs,
+                'declined_subscriptions': declined_subs
             }
 
             return Response(response_data, status=status.HTTP_200_OK)
@@ -581,7 +618,6 @@ class StudentSubscriptionDetailView(APIView):
                 {'error': 'Student not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-
 
 class AdminStudentCreateView(APIView):
     # permission_classes = [IsAdminUser]
@@ -998,6 +1034,51 @@ class TeacherStudentsView(APIView):
         except Teacher.DoesNotExist:
             return Response({'error': 'Teacher not found'}, status=404)
 
+
+
+class DeclineSubscriptionView(APIView):
+    # permission_classes = [IsAdminUser]
+    
+    def post(self, request, subscription_id):
+        try:
+            subscription = CourseGroupSubscription.objects.get(id=subscription_id)
+            
+            if subscription.is_confirmed:
+                return Response(
+                    {"error": "لا يمكن رفض اشتراك مؤكد"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            # Get note from request data (empty string if not provided)
+            decline_note = request.data.get('decline_note', '')
+            
+            # Update subscription
+            subscription.is_declined = True
+            subscription.decline_note = decline_note
+            subscription.declined_at = timezone.now()
+            subscription.save()
+            
+            return Response({
+                "success": True,
+                "message": "تم رفض الاشتراك بنجاح",
+                "subscription_id": subscription.id,
+                "student_id": subscription.student.id,
+                "student_name": subscription.student.name,
+                "course_title": subscription.course.title,
+                "decline_note": subscription.decline_note,
+                "declined_at": subscription.declined_at
+            })
+            
+        except CourseGroupSubscription.DoesNotExist:
+            return Response(
+                {"error": "الاشتراك غير موجود"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 

@@ -49,6 +49,9 @@ class Teacher(models.Model):
     image = models.ImageField(upload_to='teachers/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    order = models.IntegerField(default=0)
+    class Meta:
+        ordering = ['order'] 
     
     def __str__(self):
         return f'{self.name} | {self.id}'

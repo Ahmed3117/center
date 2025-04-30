@@ -26,7 +26,7 @@ class TeacherSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Teacher
-        fields = ['id', 'user', 'username', 'name', 'specialization','promo_video','promo_video_link', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'username', 'name','order', 'specialization','promo_video','promo_video_link', 'description', 'image', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
 class AboutPageSerializer(serializers.ModelSerializer):
@@ -173,7 +173,7 @@ class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = [
             'username', 'password', 'email', 'first_name', 'last_name',
-            'name', 'specialization', 'description', 'promo_video', 'promo_video_link', 'image'
+            'name','order', 'specialization', 'description', 'promo_video', 'promo_video_link', 'image'
         ]
 
     def create(self, validated_data):

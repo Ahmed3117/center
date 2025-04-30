@@ -149,6 +149,7 @@ class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
             'name': teacher.name,
             'image': teacher.image.url if teacher.image else None,
             'specialization': teacher.specialization,
+            'order': teacher.order,
             'promo_video': teacher.promo_video or "",
             'promo_video_link': teacher.promo_video_link or ""
         }
@@ -219,7 +220,7 @@ class TeacherFullDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = Teacher
         fields = [
-            'id', 'name', 'image', 'specialization',
+            'id', 'name', 'image', 'specialization','order',
             'description', 'promo_video','promo_video_link', 'courses'
         ]
 

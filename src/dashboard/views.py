@@ -225,7 +225,7 @@ class DashboardCourseGroupsView(generics.ListAPIView):
         if min_available:
             queryset = queryset.filter(available_capacity__gte=int(min_available))
             
-        return queryset.order_by('course__title', 'teacher__name')
+        return queryset.order_by( 'teacher__order','course__title', 'teacher__name')
 
 
 class DashboardSubscriptionsView(generics.ListAPIView):
@@ -719,6 +719,7 @@ class AdminTeacherCreateView(APIView):
                 'teacher_data': {
                     'name': teacher.name,
                     'specialization': teacher.specialization,
+                    'order': teacher.order,
                     'description': teacher.description,
                     'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
                     'promo_video_link': teacher.promo_video_link,
@@ -755,6 +756,7 @@ class AdminTeacherUpdateView(APIView):
                 'teacher_data': {
                     'name': teacher.name,
                     'specialization': teacher.specialization,
+                    'order': teacher.order,
                     'description': teacher.description,
                     'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
                     'promo_video_link': teacher.promo_video_link,
@@ -787,6 +789,7 @@ class AdminTeacherDetailView(APIView):
             'teacher_data': {
                 'name': teacher.name,
                 'specialization': teacher.specialization,
+                'order': teacher.order,
                 'description': teacher.description,
                 'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
                 'promo_video_link': teacher.promo_video_link,
@@ -936,6 +939,7 @@ class TeacherStatsView(APIView):
                 'teacher_id': teacher.id,
                 'name': teacher.name,
                 'specialization': teacher.specialization,
+                'order': teacher.order,
                 'image': teacher.image.url if teacher.image else None,
                 'total_groups': teacher.group_count,
                 'confirmed_subscriptions': teacher.confirmed_subscriptions,

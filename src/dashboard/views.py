@@ -1065,16 +1065,12 @@ class DeclineSubscriptionView(APIView):
         try:
             subscription = CourseGroupSubscription.objects.get(id=subscription_id)
             
-            if subscription.is_confirmed:
-                return Response(
-                    {"error": "لا يمكن رفض اشتراك مؤكد"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-                
+            # Removed the is_confirmed check
             # Get note from request data (empty string if not provided)
             decline_note = request.data.get('decline_note', '')
             
             # Update subscription
+            subscription.is_confirmed = False  # Add this to unconfirm if it was confirmed
             subscription.is_declined = True
             subscription.decline_note = decline_note
             subscription.declined_at = timezone.now()
@@ -1103,6 +1099,7 @@ class DeclineSubscriptionView(APIView):
             )
 
 
+
 class BulkDeclineSubscriptionsView(APIView):
     # permission_classes = [IsAdminUser]
 
@@ -1114,8 +1111,8 @@ class BulkDeclineSubscriptionsView(APIView):
         subscription_data = serializer.validated_data['subscriptions']
         results = {
             'successful': [],
-            'failed': [],
-            'already_confirmed': []
+            'failed': []
+            # Removed 'already_confirmed' as we no longer track this
         }
 
         for item in subscription_data:
@@ -1124,13 +1121,8 @@ class BulkDeclineSubscriptionsView(APIView):
                     id=item['subscription_id']
                 )
                 
-                if subscription.is_confirmed:
-                    results['already_confirmed'].append({
-                        'subscription_id': subscription.id,
-                        'error': 'Cannot decline confirmed subscription'
-                    })
-                    continue
-                
+                # Removed the is_confirmed check
+                subscription.is_confirmed = False  # Add this to unconfirm if it was confirmed
                 subscription.is_declined = True
                 subscription.decline_note = item['decline_note']
                 subscription.declined_at = timezone.now()
@@ -1158,8 +1150,6 @@ class BulkDeclineSubscriptionsView(APIView):
             'total_processed': len(subscription_data),
             'successful_count': len(results['successful']),
             'failed_count': len(results['failed']),
-            'already_confirmed_count': len(results['already_confirmed']),
             'details': results
         }, status=status.HTTP_200_OK)
-
 

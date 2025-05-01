@@ -9,6 +9,7 @@ from .views import (
     AdminTeacherDetailView,
     AdminTeacherUpdateView,
     ApplyStudentCodeView,
+    BulkDeclineSubscriptionsView,
     ConfirmSubscriptionsView,
     CourseGroupListView,
     DashboardCourseGroupsView,
@@ -69,15 +70,15 @@ urlpatterns = [
     path('student-subscriptions/<int:student_id>/', StudentSubscriptionDetailView.as_view(), name='student-subscription-detail'),
     path('students/create/', AdminStudentCreateView.as_view(), name='admin-create-student'),
     path('students/update/<int:pk>/', AdminStudentUpdateView.as_view(), name='admin-update-student'),
-    path('students/<int:pk>/', AdminStudentDetailView.as_view(), name='admin-student-detail'),
+    path('students/details/<int:pk>/', AdminStudentDetailView.as_view(), name='admin-student-detail'),
     path('teachers/create/', AdminTeacherCreateView.as_view(), name='admin-create-student'),
     path('teachers/update/<int:pk>/', AdminTeacherUpdateView.as_view(), name='admin-update-student'),
-    path('teachers/<int:pk>/', AdminTeacherDetailView.as_view(), name='admin-teacher-detail'),
+    path('teachers/details/<int:pk>/', AdminTeacherDetailView.as_view(), name='admin-teacher-detail'),
     path('subscriptions/create/', AdminCreateSubscriptionsView.as_view(), name='admin-create-subscriptions'),
     path('courses/details', CourseGroupListView.as_view(), name='course-group-list'),
 
     path('teachers/stats/', TeacherStatsView.as_view(), name='teacher-stats'),
     path('teachers/<int:teacher_id>/students/', TeacherStudentsView.as_view(), name='teacher-students'),
     path('subscriptions/<int:subscription_id>/decline/', DeclineSubscriptionView.as_view(), name='decline-subscription'),
-
+    path('subscriptions/bulk-decline/', BulkDeclineSubscriptionsView.as_view(), name='bulk-decline-subscriptions'),
 ] 

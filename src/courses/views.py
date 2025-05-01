@@ -38,6 +38,10 @@ class CourseGroupsView(generics.ListAPIView):
             confirmed_subs=Count(
                 'coursegroupsubscription',
                 filter=Q(coursegroupsubscription__is_confirmed=True)
+            ),
+            declined_subs=Count(
+                'coursegroupsubscription',
+                filter=Q(coursegroupsubscription__is_declined=True)
             )
         )
         
@@ -60,7 +64,6 @@ class CourseGroupsView(generics.ListAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-
 
 class CourseGroupDetailView(generics.RetrieveAPIView):
     permission_classes = [IsAuthenticated]
@@ -150,6 +153,12 @@ class GetTeacherFullDataView(generics.RetrieveAPIView):
                 'coursegroup_set',
                 queryset=CourseGroup.objects.select_related('course', 'teacher')
                     .prefetch_related('times')
+                    .annotate(
+                        confirmed_subs=Count(
+                            'coursegroupsubscription',
+                            filter=Q(coursegroupsubscription__is_confirmed=True)
+                        )
+                    )
             ),
             Prefetch(
                 'coursegroup_set__course',

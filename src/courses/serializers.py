@@ -20,7 +20,8 @@ class CourseGroupSerializer(serializers.ModelSerializer):
     confirmed_subscriptions = serializers.SerializerMethodField()
     available_capacity = serializers.SerializerMethodField()
     has_seats = serializers.SerializerMethodField()
-    subscription_status = serializers.SerializerMethodField()  # New field
+    subscription_status = serializers.SerializerMethodField()
+    subscription_note = serializers.SerializerMethodField()  # New field for decline note
     
     class Meta:
         model = CourseGroup
@@ -40,35 +41,58 @@ class CourseGroupSerializer(serializers.ModelSerializer):
             'confirmed_subscriptions',
             'available_capacity',
             'has_seats',
-            'subscription_status'  # Added new field
+            'subscription_status',
+            'subscription_note'  # Added new field
         ]
     
     def get_subscription_status(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
-                # Get the student object for the current user
                 student = Student.objects.get(user=request.user)
-                
-                # Check if there's a subscription for this student and course group
                 subscription = CourseGroupSubscription.objects.filter(
                     student=student,
                     course_group=obj
                 ).first()
                 
                 if subscription:
+                    if subscription.is_declined:
+                        return "declined"
                     return "subscribed" if subscription.is_confirmed else "pending"
             except Student.DoesNotExist:
                 pass
         return "new"
     
+    def get_subscription_note(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            try:
+                student = Student.objects.get(user=request.user)
+                subscription = CourseGroupSubscription.objects.filter(
+                    student=student,
+                    course_group=obj
+                ).first()
+                
+                if subscription and subscription.is_declined:
+                    return subscription.decline_note
+            except Student.DoesNotExist:
+                pass
+        return None
+    
     def get_confirmed_subscriptions(self, obj):
+        # Use annotation if available, otherwise fall back to model method
+        if hasattr(obj, 'confirmed_subs'):
+            return obj.confirmed_subs
         return obj.confirmed_subscriptions_count()
     
     def get_available_capacity(self, obj):
+        if hasattr(obj, 'confirmed_subs'):
+            return obj.capacity - obj.confirmed_subs
         return obj.available_capacity()
     
     def get_has_seats(self, obj):
+        if hasattr(obj, 'confirmed_subs'):
+            return obj.capacity > obj.confirmed_subs
         return obj.has_seats()
 
 class CourseSerializer(serializers.ModelSerializer):

@@ -24,6 +24,7 @@ from .serializers import (
     AdminCreateSubscriptionSerializer,
     AdminStudentCreateSerializer,
     AdminTeacherCreateUpdateSerializer,
+    BulkDeclineSubscriptionSerializer,
     CourseGroupWithTimesSerializer,
     CourseSerializer,
     CourseSerializerDetail,
@@ -141,14 +142,21 @@ class FeatureRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 # needed get endpoints
 
 class DashboardStudentsView(generics.ListAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAdminUser]
     serializer_class = StudentSerializer
-    filterset_fields = ['year', 'type_education', 'active', 'block']
-    
-    def get_queryset(self):
-        return Student.objects.select_related(
-            'year', 'type_education', 'user'
-        ).all()
+    queryset = Student.objects.select_related('year', 'type_education', 'user').all()
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['year', 'type_education', 'active', 'block', 'by_code', 'is_admin']
+    search_fields = [
+        'user__username', 'user__first_name', 'user__last_name', 'user__email',
+        'name', 'parent_phone', 'government', 'division', 'code'
+    ]
+    ordering_fields = ['created', 'updated', 'points', 'year__name']
+    ordering = ['-created']
+
+
+
 
 class DashboardCoursesView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -806,6 +814,13 @@ class AdminTeacherUpdateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+
+
+
+from django.contrib.auth import get_user_model
+from django.db import transaction
+
 class AdminTeacherDetailView(APIView):
     # permission_classes = [IsAdminUser]
 
@@ -840,9 +855,16 @@ class AdminTeacherDetailView(APIView):
         except Teacher.DoesNotExist:
             return Response({'error': 'Teacher not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        teacher.user.delete()  # This also deletes the teacher
-        return Response({'message': 'Teacher and associated user deleted successfully'})
-
+        # Get the user before deleting the teacher
+        user = teacher.user
+        
+        # First delete the teacher
+        teacher.delete()
+        
+        # Then delete the associated user
+        user.delete()
+        
+        return Response({'message': 'Teacher and associated user deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 class AdminCreateSubscriptionsView(APIView):
     # permission_classes = [IsAdminUser]
@@ -1081,6 +1103,63 @@ class DeclineSubscriptionView(APIView):
             )
 
 
+class BulkDeclineSubscriptionsView(APIView):
+    # permission_classes = [IsAdminUser]
 
+    def post(self, request):
+        serializer = BulkDeclineSubscriptionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        subscription_data = serializer.validated_data['subscriptions']
+        results = {
+            'successful': [],
+            'failed': [],
+            'already_confirmed': []
+        }
+
+        for item in subscription_data:
+            try:
+                subscription = CourseGroupSubscription.objects.get(
+                    id=item['subscription_id']
+                )
+                
+                if subscription.is_confirmed:
+                    results['already_confirmed'].append({
+                        'subscription_id': subscription.id,
+                        'error': 'Cannot decline confirmed subscription'
+                    })
+                    continue
+                
+                subscription.is_declined = True
+                subscription.decline_note = item['decline_note']
+                subscription.declined_at = timezone.now()
+                subscription.save()
+                
+                results['successful'].append({
+                    'subscription_id': subscription.id,
+                    'student_id': subscription.student.id,
+                    'course_title': subscription.course.title,
+                    'decline_note': subscription.decline_note
+                })
+                
+            except CourseGroupSubscription.DoesNotExist:
+                results['failed'].append({
+                    'subscription_id': item['subscription_id'],
+                    'error': 'Subscription not found'
+                })
+            except Exception as e:
+                results['failed'].append({
+                    'subscription_id': item.get('subscription_id', 'unknown'),
+                    'error': str(e)
+                })
+
+        return Response({
+            'total_processed': len(subscription_data),
+            'successful_count': len(results['successful']),
+            'failed_count': len(results['failed']),
+            'already_confirmed_count': len(results['already_confirmed']),
+            'details': results
+        }, status=status.HTTP_200_OK)
 
 

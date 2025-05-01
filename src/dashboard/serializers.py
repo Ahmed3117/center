@@ -54,11 +54,16 @@ class StudentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Student
-        fields = '__all__'  # This includes all Student fields
-        extra_fields = ['username']  # Not required but useful to highlight
+        fields = [
+            'id', 'user', 'name', 'parent_phone', 'type_education', 'year',
+            'division', 'government', 'code', 'by_code', 'active', 'block',
+            'points', 'jwt_token', 'is_admin', 'updated', 'created',
+            'username', 
+        ]
 
     def get_username(self, obj):
-        return obj.user.username
+        return obj.user.username if obj.user else None
+
 
 
 
@@ -179,8 +184,19 @@ class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = [
             'username', 'password', 'email', 'first_name', 'last_name',
-            'name','order', 'specialization', 'description', 'promo_video', 'promo_video_link', 'image'
+            'name', 'order', 'specialization', 'description',
+            'promo_video', 'promo_video_link', 'image'
         ]
+
+    def validate(self, data):
+        username = data.get('username')
+        instance = self.instance  # teacher instance
+        if username and instance:
+            current_user = instance.user
+            if username != current_user.username:
+                if User.objects.filter(username=username).exclude(pk=current_user.pk).exists():
+                    raise serializers.ValidationError({'username': 'A user with that username already exists.'})
+        return data
 
     def create(self, validated_data):
         user_data = {
@@ -197,7 +213,10 @@ class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         user = instance.user
 
-        for field in ['username', 'email', 'first_name', 'last_name']:
+        if 'username' in validated_data:
+            user.username = validated_data.pop('username')
+
+        for field in ['email', 'first_name', 'last_name']:
             if field in validated_data:
                 setattr(user, field, validated_data.pop(field))
 
@@ -211,6 +230,35 @@ class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'password', 'email', 'first_name', 'last_name']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False}
+        }
+
+    def update(self, instance, validated_data):
+        if 'username' in validated_data and validated_data['username'] != instance.username:
+            if User.objects.filter(username=validated_data['username']).exclude(pk=instance.pk).exists():
+                raise serializers.ValidationError({'username': 'A user with that username already exists.'})
+            instance.username = validated_data['username']
+
+        for field in ['email', 'first_name', 'last_name']:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+
+        if 'password' in validated_data:
+            instance.set_password(validated_data['password'])
+
+        instance.save()
+        return instance
+
+
+
 
 
 class CourseGroupSerializer(serializers.ModelSerializer):
@@ -262,3 +310,23 @@ class CourseSerializerDetail(serializers.ModelSerializer):
             groups = groups.filter(is_active=True)
             
         return CourseGroupSerializer(groups, many=True, context=self.context).data
+
+
+class BulkDeclineSubscriptionSerializer(serializers.Serializer):
+    subscriptions = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField(),
+            allow_empty=False
+        ),
+        min_length=1
+    )
+
+    def validate_subscriptions(self, value):
+        for sub in value:
+            if 'subscription_id' not in sub:
+                raise serializers.ValidationError("Each item must contain a 'subscription_id'")
+            if 'decline_note' not in sub:
+                sub['decline_note'] = ""  # Default empty note if not provided
+        return value
+
+

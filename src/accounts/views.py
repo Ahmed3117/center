@@ -327,12 +327,14 @@ class MySubscriptionsView(APIView):
             for sub in subscriptions:
                 sub_data = {
                     'subscription_id': sub.id,
-                    'course_id': sub.course.id,
-                    'course_title': sub.course.title,
-                    'group_id': sub.course_group.id,
-                    'group_capacity': sub.course_group.capacity,
-                    'teacher_id': sub.course_group.teacher.id,
-                    'teacher_name': sub.course_group.teacher.name,
+                    'course_id': sub.course.id if sub.course else None,
+                    'course_title': sub.course.title if sub.course else None,
+                    'year_id': sub.course.year.id if sub.course and sub.course.year else None,
+                    'year_name': sub.course.year.name if sub.course and sub.course.year else None,
+                    'group_id': sub.course_group.id if sub.course_group else None,
+                    'group_capacity': sub.course_group.capacity if sub.course_group else None,
+                    'teacher_id': sub.course_group.teacher.id if sub.course_group and sub.course_group.teacher else None,
+                    'teacher_name': sub.course_group.teacher.name if sub.course_group and sub.course_group.teacher else None,
                     'created_at': sub.created_at,
                     'confirmed_at': sub.confirmed_at,
                     'declined_at': sub.declined_at,
@@ -342,7 +344,7 @@ class MySubscriptionsView(APIView):
                             'day': slot.day,
                             'time': slot.time.strftime('%H:%M')
                         } for slot in sub.course_group.times.all()
-                    ]
+                    ] if sub.course_group else []
                 }
                 
                 if sub.is_declined:

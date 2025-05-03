@@ -123,7 +123,7 @@ class AdminStudentCreateSerializer(serializers.ModelSerializer):
         fields = [
             'username', 'password', 'email', 'first_name', 'last_name',
             'name', 'parent_phone', 'type_education', 'year',
-            'division', 'government', 'code', 'by_code'
+            'division', 'government', 'code', 'by_code', 'active', 'block',
         ]
         extra_kwargs = {
             'code': {'required': False},

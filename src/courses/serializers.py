@@ -13,6 +13,7 @@ class CourseGroupTimeSerializer(serializers.ModelSerializer):
 class CourseGroupSerializer(serializers.ModelSerializer):
     times = CourseGroupTimeSerializer(many=True, read_only=True)
     teacher_name = serializers.CharField(source='teacher.name', read_only=True)
+    teacher_education_language_type = serializers.CharField(source='teacher.education_language_type', read_only=True)
     teacher_promo_video = serializers.CharField(source='teacher.promo_video', read_only=True)
     teacher_promo_video_link = serializers.CharField(source='teacher.promo_video_link', read_only=True)
     year_name = serializers.CharField(source='course.year.name', read_only=True)
@@ -31,6 +32,7 @@ class CourseGroupSerializer(serializers.ModelSerializer):
             'teacher', 
             'image', 
             'teacher_name', 
+            'teacher_education_language_type',
             'teacher_promo_video', 
             'teacher_promo_video_link', 
             'year_name', 
@@ -173,6 +175,7 @@ class CourseGroupSubscriptionSerializer(serializers.ModelSerializer):
             'name': teacher.name,
             'image': teacher.image.url if teacher.image else None,
             'specialization': teacher.specialization,
+            'education_language_type': teacher.education_language_type,
             'order': teacher.order,
             'promo_video': teacher.promo_video or "",
             'promo_video_link': teacher.promo_video_link or ""
@@ -244,7 +247,7 @@ class TeacherFullDataSerializer(serializers.ModelSerializer):
     class Meta:
         model = Teacher
         fields = [
-            'id', 'name', 'image', 'specialization','order',
+            'id', 'name', 'image', 'specialization', 'education_language_type' ,'order',
             'description', 'promo_video','promo_video_link', 'courses'
         ]
 

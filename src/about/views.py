@@ -41,8 +41,11 @@ class TeachersPublicView(generics.ListAPIView):
         
         # Filter by course if course_id parameter is provided
         course_id = self.request.query_params.get('course_id')
+        education_language_type = self.request.query_params.get('education_language_type')
         if course_id:
             queryset = queryset.filter(course__id=course_id).distinct()
+        if education_language_type:
+            queryset = queryset.filter(education_language_type=education_language_type).distinct()
             
         return queryset
 

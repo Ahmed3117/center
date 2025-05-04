@@ -22,6 +22,7 @@ from django.db.models import F, BooleanField
 from datetime import datetime, timedelta
 from django.utils.dateparse import parse_datetime,parse_date
 from rest_framework.filters import SearchFilter,OrderingFilter
+from django.db.models import Subquery, OuterRef, IntegerField
 
 
 
@@ -79,7 +80,7 @@ class TeacherListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ['name', 'specialization']
     filterset_fields = ['education_language_type', ]
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
 
 class TeacherRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete a teacher instance"""
@@ -426,13 +427,18 @@ class AdminDeleteSubscriptionView(APIView):
             )
 
 
+
+
+
+
+
+
 class SubscriptionListView(APIView):
-    # permission_classes = [IsAdminUser]
     pagination_class = CustomPageNumberPagination
 
     def get(self, request):
         params = request.query_params
-        
+
         # Base queryset
         student_queryset = Student.objects.filter(
             coursegroupsubscription__isnull=False
@@ -514,26 +520,36 @@ class SubscriptionListView(APIView):
                 Q(coursegroupsubscription__course_group__teacher__name__icontains=search_term)
             ).distinct()
 
-        # Annotate with subscription counts
+        # Accurate subscription count annotations using Subquery
+        confirmed_subs = CourseGroupSubscription.objects.filter(
+            student_id=OuterRef('pk'),
+            is_confirmed=True
+        ).values('student_id').annotate(c=Count('id')).values('c')
+
+        unconfirmed_subs = CourseGroupSubscription.objects.filter(
+            student_id=OuterRef('pk'),
+            is_confirmed=False,
+            is_declined=False
+        ).values('student_id').annotate(c=Count('id')).values('c')
+
+        declined_subs = CourseGroupSubscription.objects.filter(
+            student_id=OuterRef('pk'),
+            is_declined=True
+        ).values('student_id').annotate(c=Count('id')).values('c')
+
         student_queryset = student_queryset.annotate(
-            confirmed_count=Count(
-                'coursegroupsubscription',
-                filter=Q(coursegroupsubscription__is_confirmed=True)
-            ),
-            unconfirmed_count=Count(
-                'coursegroupsubscription',
-                filter=Q(coursegroupsubscription__is_confirmed=False) & 
-                Q(coursegroupsubscription__is_declined=False)
-            ),
-            declined_count=Count(
-                'coursegroupsubscription',
-                filter=Q(coursegroupsubscription__is_declined=True)
-            )
+            confirmed_count=Subquery(confirmed_subs, output_field=IntegerField()),
+            unconfirmed_count=Subquery(unconfirmed_subs, output_field=IntegerField()),
+            declined_count=Subquery(declined_subs, output_field=IntegerField())
         )
 
-        # Build simplified response
+        # Prepare response data
         students_data = []
         for student in student_queryset:
+            confirmed = student.confirmed_count or 0
+            unconfirmed = student.unconfirmed_count or 0
+            declined = student.declined_count or 0
+
             students_data.append({
                 'student_id': student.id,
                 'student_name': student.name,
@@ -544,18 +560,21 @@ class SubscriptionListView(APIView):
                 'student_government': student.government,
                 'student_year': student.year.name if student.year else None,
                 'type_education': student.type_education.name if student.type_education else None,
-                'confirmed_subscriptions_count': student.confirmed_count,
-                'unconfirmed_subscriptions_count': student.unconfirmed_count,
-                'declined_subscriptions_count': student.declined_count,
-                'has_unconfirmed_subscriptions': student.unconfirmed_count > 0,
-                'has_declined_subscriptions': student.declined_count > 0
+                'confirmed_subscriptions_count': confirmed,
+                'unconfirmed_subscriptions_count': unconfirmed,
+                'declined_subscriptions_count': declined,
+                'has_unconfirmed_subscriptions': unconfirmed > 0,
+                'has_declined_subscriptions': declined > 0
             })
 
-        # Pagination
+        # Paginate
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(students_data, request)
-        
         return paginator.get_paginated_response(page)
+
+
+
+
 
 
 class StudentSubscriptionDetailView(APIView):

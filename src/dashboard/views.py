@@ -15,9 +15,14 @@ from rest_framework.permissions import IsAdminUser
 from django.db.models import Q, Exists, OuterRef,Count, Case, When
 from django.utils import timezone
 from django.contrib.auth.models import User
+from dashboard.filters import RequestLogFilter
+from dashboard.models import RequestLog
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter
 from django.db.models import F, BooleanField
+from datetime import datetime, timedelta
+from django.utils.dateparse import parse_datetime,parse_date
+from rest_framework.filters import SearchFilter,OrderingFilter
+
 
 
 from .serializers import (
@@ -28,6 +33,7 @@ from .serializers import (
     CourseGroupWithTimesSerializer,
     CourseSerializer,
     CourseSerializerDetail,
+    RequestLogSerializer,
     StudentSerializer,
     SubscriptionSerializer,
     YearSerializer, 
@@ -72,6 +78,7 @@ class TeacherListCreateView(generics.ListCreateAPIView):
     serializer_class = TeacherSerializer
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ['name', 'specialization']
+    filterset_fields = ['education_language_type', ]
     filter_backends = [filters.SearchFilter]
 
 class TeacherRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -181,6 +188,7 @@ class DashboardCourseGroupsView(generics.ListAPIView):
         'course__year': ['exact'],
         'course__type_education': ['exact'],
         'teacher': ['exact'],
+        'teacher__education_language_type': ['exact'],
         'is_active': ['exact'],
         'capacity': ['gte', 'lte'],
         'times__day': ['exact'],
@@ -192,6 +200,7 @@ class DashboardCourseGroupsView(generics.ListAPIView):
         'course__type_education__name',
         'teacher__name',
         'teacher__specialization',
+        'teacher__education_language_type',
     ]
     
     def get_queryset(self):
@@ -583,6 +592,7 @@ class StudentSubscriptionDetailView(APIView):
                     'group_capacity': sub.course_group.capacity if sub.course_group else None,
                     'teacher_id': sub.course_group.teacher.id if sub.course_group and sub.course_group.teacher else None,
                     'teacher_name': sub.course_group.teacher.name if sub.course_group and sub.course_group.teacher else None,
+                    'teacher_education_language_type': sub.course_group.teacher.education_language_type if sub.course_group and sub.course_group.teacher else None,
                     'created_at': sub.created_at,
                     'confirmed_at': sub.confirmed_at,
                     'declined_at': sub.declined_at,
@@ -766,6 +776,7 @@ class AdminTeacherCreateView(APIView):
                 'teacher_data': {
                     'name': teacher.name,
                     'specialization': teacher.specialization,
+                    'education_language_type': teacher.education_language_type,
                     'order': teacher.order,
                     'description': teacher.description,
                     'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
@@ -803,6 +814,7 @@ class AdminTeacherUpdateView(APIView):
                 'teacher_data': {
                     'name': teacher.name,
                     'specialization': teacher.specialization,
+                    'education_language_type': teacher.education_language_type,
                     'order': teacher.order,
                     'description': teacher.description,
                     'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
@@ -843,6 +855,7 @@ class AdminTeacherDetailView(APIView):
             'teacher_data': {
                 'name': teacher.name,
                 'specialization': teacher.specialization,
+                'education_language_type': teacher.education_language_type,
                 'order': teacher.order,
                 'description': teacher.description,
                 'promo_video': request.build_absolute_uri(teacher.promo_video.url) if teacher.promo_video else None,
@@ -1000,6 +1013,7 @@ class TeacherStatsView(APIView):
                 'teacher_id': teacher.id,
                 'name': teacher.name,
                 'specialization': teacher.specialization,
+                'education_language_type': teacher.education_language_type,
                 'order': teacher.order,
                 'image': teacher.image.url if teacher.image else None,
                 'total_groups': teacher.group_count,
@@ -1050,6 +1064,7 @@ class TeacherStudentsView(APIView):
             response_data = {
                 'teacher_id': teacher.id,
                 'teacher_name': teacher.name,
+                'teacher_education_language_type': teacher.education_language_type,
                 'confirmed_students': build_student_data(confirmed_subs),
                 'unconfirmed_students': build_student_data(unconfirmed_subs)
             }
@@ -1155,4 +1170,105 @@ class BulkDeclineSubscriptionsView(APIView):
             'failed_count': len(results['failed']),
             'details': results
         }, status=status.HTTP_200_OK)
+
+
+
+
+
+#^ < ==============================[ <- Logs -> ]============================== > ^#
+
+class RequestLogListView(generics.ListAPIView):
+    queryset = RequestLog.objects.all()
+    serializer_class = RequestLogSerializer
+    # permission_classes = [IsAdminUser]
+    filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
+    filterset_class = RequestLogFilter 
+    search_fields = ['path', 'view_name']
+    ordering_fields = ['timestamp', 'response_time', 'status_code']
+    ordering = ['-timestamp']
+
+class RequestLogDeleteView(APIView):
+    # permission_classes = [IsAdminUser]
+
+    def delete(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if not start_date and not end_date:
+            return Response(
+                {"error": "At least one of start_date or end_date must be provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Start building the query
+        query_filter = {}
+        
+        # Process start_date if provided
+        if start_date:
+            try:
+                # Try to parse as ISO datetime first
+                start_datetime = parse_datetime(start_date)
+                
+                # If that fails, try to parse as date only
+                if not start_datetime:
+                    date_obj = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+                    start_datetime = timezone.make_aware(datetime.datetime.combine(date_obj, datetime.time.min))
+                
+                # If it's still None, it's an invalid format
+                if not start_datetime:
+                    return Response(
+                        {"error": "Invalid start_date format. Use ISO format (YYYY-MM-DDThh:mm:ss) or YYYY-MM-DD"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                    
+                query_filter['timestamp__gte'] = start_datetime
+                
+            except ValueError:
+                return Response(
+                    {"error": "Invalid start_date format. Use ISO format (YYYY-MM-DDThh:mm:ss) or YYYY-MM-DD"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Process end_date if provided
+        if end_date:
+            try:
+                # Try to parse as ISO datetime first
+                end_datetime = parse_datetime(end_date)
+                
+                # If that fails, try to parse as date only
+                if not end_datetime:
+                    date_obj = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+                    end_datetime = timezone.make_aware(datetime.datetime.combine(date_obj, datetime.time.max))
+                
+                # If it's still None, it's an invalid format
+                if not end_datetime:
+                    return Response(
+                        {"error": "Invalid end_date format. Use ISO format (YYYY-MM-DDThh:mm:ss) or YYYY-MM-DD"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                    
+                query_filter['timestamp__lte'] = end_datetime
+                
+            except ValueError:
+                return Response(
+                    {"error": "Invalid end_date format. Use ISO format (YYYY-MM-DDThh:mm:ss) or YYYY-MM-DD"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Debug info before deletion
+        logs_before_delete = RequestLog.objects.filter(**query_filter).count()
+        
+        # Delete logs
+        deleted, _ = RequestLog.objects.filter(**query_filter).delete()
+        
+        # Add debug info to response
+        return Response({
+            "message": f"Successfully deleted {deleted} logs",
+            "deleted_count": deleted,
+            "found_before_delete": logs_before_delete,
+            "query_filter": {
+                "start_date": str(query_filter.get('timestamp__gte')),
+                "end_date": str(query_filter.get('timestamp__lte'))
+            }
+        })
 

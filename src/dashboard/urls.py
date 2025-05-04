@@ -17,6 +17,8 @@ from .views import (
     DashboardStudentsView,
     DashboardSubscriptionsView,
     DeclineSubscriptionView,
+    RequestLogDeleteView,
+    RequestLogListView,
     StudentSubscriptionDetailView,
     SubscriptionListView,
     TeacherStatsView,
@@ -81,4 +83,8 @@ urlpatterns = [
     path('teachers/<int:teacher_id>/students/', TeacherStudentsView.as_view(), name='teacher-students'),
     path('subscriptions/<int:subscription_id>/decline/', DeclineSubscriptionView.as_view(), name='decline-subscription'),
     path('subscriptions/bulk-decline/', BulkDeclineSubscriptionsView.as_view(), name='bulk-decline-subscriptions'),
+
+    #^ < ==============================[ <- Logs -> ]============================== > ^#
+    path('logs/', RequestLogListView.as_view(), name='request-logs-list'),
+    path('logs/delete/', RequestLogDeleteView.as_view(), name='request-logs-delete'),
 ] 

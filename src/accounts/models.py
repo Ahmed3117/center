@@ -3,6 +3,11 @@ from django.db import models
 from django.contrib.auth.models import User
 # Create your models here.
 
+EducationLanguageType = (
+    ('general', 'General'),
+    ('languages', 'Languages'),
+)
+
 class Year(models.Model):
     name = models.CharField(max_length=50)
     updated = models.DateTimeField(auto_now=True)
@@ -44,6 +49,7 @@ class Teacher(models.Model):
     name = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    education_language_type = models.CharField(max_length=15, choices= EducationLanguageType, default='general' , blank=True, null=True)
     promo_video = models.FileField(upload_to='teacher_videos/', blank=True, null=True)
     promo_video_link = models.CharField(max_length=300, blank=True, null=True)
     image = models.ImageField(upload_to='teachers/', blank=True, null=True)

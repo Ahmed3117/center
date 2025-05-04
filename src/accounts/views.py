@@ -335,6 +335,7 @@ class MySubscriptionsView(APIView):
                     'group_capacity': sub.course_group.capacity if sub.course_group else None,
                     'teacher_id': sub.course_group.teacher.id if sub.course_group and sub.course_group.teacher else None,
                     'teacher_name': sub.course_group.teacher.name if sub.course_group and sub.course_group.teacher else None,
+                    'teacher_education_language_type': sub.course_group.teacher.education_language_type if sub.course_group and sub.course_group.teacher else None,
                     'created_at': sub.created_at,
                     'confirmed_at': sub.confirmed_at,
                     'declined_at': sub.declined_at,

@@ -4,6 +4,8 @@ from about.models import AboutPage, Feature
 from courses.models import Course, CourseGroup, CourseGroupSubscription, CourseGroupTime
 from django.contrib.auth.models import User
 
+from dashboard.models import RequestLog
+
 class YearSerializer(serializers.ModelSerializer):
     """Serializer for the Year model"""
     
@@ -26,7 +28,7 @@ class TeacherSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Teacher
-        fields = ['id', 'user', 'username', 'name','order', 'specialization','promo_video','promo_video_link', 'description', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'user', 'username', 'name','order', 'specialization', 'education_language_type','promo_video','promo_video_link', 'description', 'image', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
 class AboutPageSerializer(serializers.ModelSerializer):
@@ -184,7 +186,7 @@ class AdminTeacherCreateUpdateSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = [
             'username', 'password', 'email', 'first_name', 'last_name',
-            'name', 'order', 'specialization', 'description',
+            'name', 'order', 'specialization','education_language_type', 'description',
             'promo_video', 'promo_video_link', 'image'
         ]
 
@@ -264,6 +266,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class CourseGroupSerializer(serializers.ModelSerializer):
     times = CourseGroupTimeSerializer(many=True, read_only=True)
     teacher_name = serializers.CharField(source='teacher.name', read_only=True)
+    teacher_education_language_type = serializers.CharField(source='teacher.education_language_type', read_only=True)
     confirmed_subscriptions = serializers.SerializerMethodField()
     available_capacity = serializers.SerializerMethodField()
     teacher_image = serializers.SerializerMethodField()
@@ -278,7 +281,7 @@ class CourseGroupSerializer(serializers.ModelSerializer):
         model = CourseGroup
         fields = [
             'id', 'capacity', 'is_active', 'image', 
-            'teacher', 'teacher_name','teacher_image', 'times',
+            'teacher', 'teacher_name','teacher_education_language_type','teacher_image', 'times',
             'confirmed_subscriptions', 'available_capacity'
         ]
     
@@ -329,4 +332,17 @@ class BulkDeclineSubscriptionSerializer(serializers.Serializer):
                 sub['decline_note'] = ""  # Default empty note if not provided
         return value
 
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+
+class RequestLogSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = RequestLog
+        fields = '__all__'
 

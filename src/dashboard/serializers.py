@@ -132,6 +132,13 @@ class AdminStudentCreateSerializer(serializers.ModelSerializer):
             'by_code': {'required': False}
         }
 
+    def validate_username(self, value):
+        user = self.instance.user if self.instance else None
+        # If username is different from current and exists → raise error
+        if User.objects.filter(username=value).exclude(id=user.id).exists():
+            raise serializers.ValidationError("This username is already taken by another user.")
+        return value
+
     def create(self, validated_data):
         user_data = {
             'username': validated_data.pop('username'),

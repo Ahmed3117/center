@@ -45,8 +45,21 @@ class StudentSignInView(APIView):
         # Authenticate the user with provided credentials
         user = authenticate(username=username, password=password)
 
-        # If authentication is successful, generate and return JWT tokens
         if user is not None:
+            try:
+                student = user.student
+            except Student.DoesNotExist:
+                return Response(
+                    {'error': 'No student profile associated with this user.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if student.block:
+                return Response(
+                    {'error': 'لقد تم حظرك من قبل الإدارة'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
             refresh = RefreshToken.for_user(user)  # Generate refresh token
             access = AccessToken.for_user(user)    # Generate access token
             
@@ -55,23 +68,19 @@ class StudentSignInView(APIView):
             refresh_token = f'{settings.SIMPLE_JWT["AUTH_HEADER_TYPES"]} {refresh}'
             
             # Store Token In Student Model
-            student = user.student
             student.jwt_token = access_token
             student.save()
 
-            # Store user activity
-            # store_user_activity(request, user)
-
             return Response({
-                'refresh_token':refresh_token,
+                'refresh_token': refresh_token,
                 'access_token': access_token,
             })
 
-        # If authentication fails, return an error response
         return Response(
-            {'error': 'Invalid Credentials'}, 
+            {'error': 'Invalid credentials'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
+
 
 class StudentSignUpView(APIView):
     """

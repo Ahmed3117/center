@@ -368,7 +368,11 @@ class ConfirmSubscriptionsView(APIView):
             # Update unconfirmed subscriptions
             confirmed_count = unconfirmed_subscriptions.update(
                 is_confirmed=True,
-                confirmed_at=timezone.now()
+                confirmed_at=timezone.now(),
+                is_declined=False,
+                decline_note=None,
+                declined_at=None
+
             )
             
             # Calculate already confirmed
@@ -459,6 +463,11 @@ class SubscriptionListView(APIView):
             student_queryset = student_queryset.filter(
                 government=params['government']
             )
+        if 'type_education' in params:
+            student_queryset = student_queryset.filter(
+                type_education_id=params['type_education']
+            )
+        
         if 'year_id' in params:
             student_queryset = student_queryset.filter(
                 year_id=params['year_id']

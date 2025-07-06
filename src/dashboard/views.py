@@ -467,7 +467,6 @@ class SubscriptionListView(APIView):
             student_queryset = student_queryset.filter(
                 type_education_id=params['type_education']
             )
-        
         if 'year_id' in params:
             student_queryset = student_queryset.filter(
                 year_id=params['year_id']
@@ -475,6 +474,11 @@ class SubscriptionListView(APIView):
         if 'is_confirmed' in params:
             student_queryset = student_queryset.filter(
                 coursegroupsubscription__is_confirmed=params['is_confirmed'].lower() == 'true'
+            )
+        # Add teacher filter
+        if 'teacher_id' in params:
+            student_queryset = student_queryset.filter(
+                coursegroupsubscription__course_group__teacher_id=params['teacher_id']
             )
         if 'has_unconfirmed_subscriptions' in params:
             if params['has_unconfirmed_subscriptions'].lower() == 'true':
@@ -559,6 +563,27 @@ class SubscriptionListView(APIView):
             unconfirmed = student.unconfirmed_count or 0
             declined = student.declined_count or 0
 
+            # Get all subscriptions for the student to include teacher names
+            subscriptions = CourseGroupSubscription.objects.filter(student=student).select_related(
+                'course_group__teacher'
+            )
+            
+            teachers = []
+            for sub in subscriptions:
+                if sub.course_group.teacher:
+                    teachers.append({
+                        'id': sub.course_group.teacher.id,
+                        'name': sub.course_group.teacher.name
+                    })
+            
+            # Remove duplicate teachers
+            unique_teachers = []
+            seen_teacher_ids = set()
+            for teacher in teachers:
+                if teacher['id'] not in seen_teacher_ids:
+                    seen_teacher_ids.add(teacher['id'])
+                    unique_teachers.append(teacher)
+
             students_data.append({
                 'student_id': student.id,
                 'student_name': student.name,
@@ -573,14 +598,14 @@ class SubscriptionListView(APIView):
                 'unconfirmed_subscriptions_count': unconfirmed,
                 'declined_subscriptions_count': declined,
                 'has_unconfirmed_subscriptions': unconfirmed > 0,
-                'has_declined_subscriptions': declined > 0
+                'has_declined_subscriptions': declined > 0,
+                'teachers': unique_teachers  # Include list of teachers
             })
 
         # Paginate
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(students_data, request)
         return paginator.get_paginated_response(page)
-
 
 
 

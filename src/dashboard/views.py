@@ -155,10 +155,10 @@ class DashboardStudentsView(generics.ListAPIView):
     queryset = Student.objects.select_related('year', 'type_education', 'user').all()
 
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['year', 'type_education', 'active', 'block', 'by_code', 'is_admin', 'division', 'government']
+    filterset_fields = ['year', 'type_education', 'active', 'block', 'by_code','code', 'is_admin', 'division', 'government','user__username','parent_phone']
     search_fields = [
-        'user__username', 'user__first_name', 'user__last_name', 'user__email',
-        'name', 'parent_phone', 'government', 'division', 'code'
+        'user__first_name', 'user__last_name', 'user__email',
+        'name','government', 'division', 'code'
     ]
     ordering_fields = ['created', 'updated', 'points', 'year__name']
     ordering = ['-created']

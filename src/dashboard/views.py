@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from django.utils.dateparse import parse_datetime,parse_date
 from rest_framework.filters import SearchFilter,OrderingFilter
 from django.db.models import Subquery, OuterRef, IntegerField
+from django.conf import settings
 
 
 
@@ -43,6 +44,28 @@ from .serializers import (
     AboutPageSerializer,
     FeatureSerializer
 )
+
+# Custom permission to allow either authenticated user or requests with a valid private token
+class IsAuthenticatedOrPrivateToken(permissions.BasePermission):
+    """Allow access if user is authenticated or a valid private token is provided.
+    Accepted token locations:
+    - Header: X-Private-Token
+    - Query param: private_token
+    Settings keys checked (in order): private_token, PRIVATE_TOKEN
+    """
+    def has_permission(self, request, view):
+        # Allow normal authenticated requests
+        if getattr(request, 'user', None) and request.user.is_authenticated:
+            return True
+
+        # Fallback to private token check
+        provided = (
+            request.headers.get('X-Private-Token')
+            or request.query_params.get('private_token')
+            or request.META.get('HTTP_X_PRIVATE_TOKEN')
+        )
+        expected = getattr(settings, 'private_token', None) or getattr(settings, 'PRIVATE_TOKEN', None)
+        return bool(expected and provided and provided == expected)
 
 # Create your views here.
 
@@ -247,7 +270,7 @@ class DashboardCourseGroupsView(generics.ListAPIView):
 
 
 class DashboardSubscriptionsView(generics.ListAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrPrivateToken]
     serializer_class = SubscriptionSerializer
     filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
     

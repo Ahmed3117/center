@@ -353,3 +353,90 @@ class RequestLogSerializer(serializers.ModelSerializer):
         model = RequestLog
         fields = '__all__'
 
+class SubscriptionSimpleSerializer(serializers.ModelSerializer):
+    student = serializers.SerializerMethodField()
+    course_group = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CourseGroupSubscription
+        fields = [
+            'id', 'student', 'course_group',
+            'is_confirmed', 'confirmed_at', 'created_at',
+            'is_declined', 'decline_note', 'declined_at'
+        ]
+
+    def get_student(self, obj):
+        s = obj.student
+        return {
+            'id': s.id,
+            'user': s.user.id if s.user else None,
+            'name': s.name,
+            'parent_phone': s.parent_phone,
+            'type_education_id': s.type_education.id if s.type_education else None,
+            'type_education_name': s.type_education.name if s.type_education else None,
+            'year_id': s.year.id if s.year else None,
+            'year_name': s.year.name if s.year else None,
+            'division': s.division,
+            'government': s.government,
+            'code': s.code,
+            'by_code': s.by_code,
+            'active': s.active,
+            'block': s.block,
+            'points': s.points,
+            'jwt_token': s.jwt_token,
+            'is_admin': s.is_admin,
+            'updated': s.updated,
+            'created': s.created,
+            'username': s.user.username if s.user else None,
+        }
+
+    def get_course_group(self, obj):
+        g = obj.course_group
+        c = g.course if g else None
+        t = g.teacher if g else None
+        request = self.context.get('request')
+
+        # Teacher details using existing serializer to keep parity
+        teacher_data = TeacherSerializer(t, context={'request': request}).data if t else None
+
+        # Times
+        times_data = CourseGroupTimeSerializer(g.times.all(), many=True).data if g else []
+
+        # Course details (flattened as requested)
+        course_data = None
+        if c:
+            course_data = {
+                'id': c.id,
+                'course_id': c.id,  # duplicate key as per requested output example
+                'course_name': c.year.name if c.year else None,  # matching provided example
+                'type_education_id': c.type_education.id if c.type_education else None,
+                'type_education_name': c.type_education.name if c.type_education else None,
+                'title': c.title,
+                'created_at': c.created_at,
+                'updated_at': c.updated_at,
+            }
+
+        # Capacity info
+        confirmed_count = g.coursegroupsubscription_set.filter(is_confirmed=True).count() if g else 0
+        available_capacity = (g.capacity - confirmed_count) if g else 0
+        has_seats = available_capacity > 0
+
+        # Image absolute URL if possible
+        image_url = None
+        if g and g.image:
+            image_url = request.build_absolute_uri(g.image.url) if request else g.image.url
+
+        return {
+            'id': g.id if g else None,
+            'course': course_data,
+            'teacher': teacher_data,
+            'capacity': g.capacity if g else None,
+            'is_active': g.is_active if g else None,
+            'image': image_url,
+            'times': times_data,
+            'available_capacity': available_capacity,
+            'has_seats': has_seats,
+            'created_at': g.created_at if g else None,
+            'updated_at': g.updated_at if g else None,
+        }
+

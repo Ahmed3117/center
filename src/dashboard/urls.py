@@ -16,6 +16,7 @@ from .views import (
     DashboardCoursesView,
     DashboardStudentsView,
     DashboardSubscriptionsView,
+    DashboardSubscriptionsSimpleView,
     DeclineSubscriptionView,
     RequestLogDeleteView,
     RequestLogListView,
@@ -62,6 +63,7 @@ urlpatterns = [
     path('courses/', DashboardCoursesView.as_view(), name='dashboard-courses'),
     path('coursegroups/', DashboardCourseGroupsView.as_view(), name='dashboard-coursegroups'),
     path('subscriptions/', DashboardSubscriptionsView.as_view(), name='dashboard-subscriptions'),
+    path('subscriptions-simple/', DashboardSubscriptionsSimpleView.as_view(), name='dashboard-subscriptions-simple'),
 
 
     # new
@@ -87,4 +89,4 @@ urlpatterns = [
     #^ < ==============================[ <- Logs -> ]============================== > ^#
     path('logs/', RequestLogListView.as_view(), name='request-logs-list'),
     path('logs/delete/', RequestLogDeleteView.as_view(), name='request-logs-delete'),
-] 
+]

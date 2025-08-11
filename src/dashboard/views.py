@@ -38,6 +38,7 @@ from .serializers import (
     RequestLogSerializer,
     StudentSerializer,
     SubscriptionSerializer,
+    SubscriptionSimpleSerializer,
     YearSerializer, 
     TypeEducationSerializer, 
     TeacherSerializer,
@@ -274,6 +275,27 @@ class DashboardSubscriptionsView(generics.ListAPIView):
     serializer_class = SubscriptionSerializer
     filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
     
+    def get_queryset(self):
+        return CourseGroupSubscription.objects.select_related(
+            'student', 'student__year', 'student__type_education',
+            'course', 'course__year', 'course__type_education',
+            'course_group', 'course_group__teacher'
+        ).prefetch_related(
+            'course_group__times'
+        ).all()
+
+class DashboardSubscriptionsSimpleView(generics.ListAPIView):
+    permission_classes = [IsAuthenticatedOrPrivateToken]
+    serializer_class = SubscriptionSimpleSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
+    search_fields = [
+        'student__name', 'student__user__username', 'student__parent_phone',
+        'course__title', 'course_group__teacher__name'
+    ]
+    ordering_fields = ['created_at', 'confirmed_at']
+    ordering = ['-created_at']
+
     def get_queryset(self):
         return CourseGroupSubscription.objects.select_related(
             'student', 'student__year', 'student__type_education',

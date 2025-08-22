@@ -284,72 +284,6 @@ class DashboardSubscriptionsView(generics.ListAPIView):
             'course_group__times'
         ).all()
 
-class DashboardSubscriptionsSimpleView(generics.ListAPIView):
-    permission_classes = [IsAuthenticatedOrPrivateToken]
-    serializer_class = SubscriptionSimpleSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
-    search_fields = [
-        'student__name', 'student__user__username', 'student__parent_phone',
-        'course__title', 'course_group__teacher__name'
-    ]
-    ordering_fields = ['created_at', 'confirmed_at']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        qs = CourseGroupSubscription.objects.select_related(
-            'student', 'student__year', 'student__type_education',
-            'course_group', 'course_group__teacher'
-        ).prefetch_related(
-            'course_group__times'
-        )
-        # Filters
-        course_group_id = self.request.query_params.get('course_group_id') or self.request.query_params.get('course_group')
-        if course_group_id:
-            qs = qs.filter(course_group_id=course_group_id)
-        course_id = self.request.query_params.get('course_id') or self.request.query_params.get('course')
-        if course_id:
-            qs = qs.filter(course_id=course_id)
-        teacher_id = self.request.query_params.get('teacher_id') or self.request.query_params.get('teacher')
-        if teacher_id:
-            qs = qs.filter(course_group__teacher_id=teacher_id)
-        is_confirmed = self.request.query_params.get('is_confirmed')
-        if is_confirmed is not None:
-            val = is_confirmed.lower() in ['true', '1', 'yes']
-            qs = qs.filter(is_confirmed=val)
-
-        def build_student(s):
-            return {
-                'id': s.id,
-                'user': s.user.id if s.user else None,
-                'name': s.name,
-                'parent_phone': s.parent_phone,
-                'type_education_id': s.type_education.id if s.type_education else None,
-                'type_education_name': s.type_education.name if s.type_education else None,
-                'year_id': s.year.id if s.year else None,
-                'year_name': s.year.name if s.year else None,
-                'division': s.division,
-                'government': s.government,
-                'code': s.code,
-                'by_code': s.by_code,
-                'active': s.active,
-                'block': s.block,
-                'points': s.points,
-                'jwt_token': s.jwt_token,
-                'is_admin': s.is_admin,
-                'updated': s.updated,
-                'created': s.created,
-                'username': s.user.username if s.user else None,
-            }
-
-        results = [
-            {
-                'coursegroup_id': sub.course_group.id if sub.course_group else None,
-                'student': build_student(sub.student)
-            }
-            for sub in qs
-        ]
-        return Response({'count': len(results), 'subscriptions': results})
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -1439,6 +1373,8 @@ class DesktopCourseGroupsSimpleView(APIView):
                 'course_name': g.course.title if g.course else None,
                 'teacher_id': g.teacher.id if g.teacher else None,
                 'teacher_name': g.teacher.name if g.teacher else None,
+                'year_id': g.course.year.id if g.course and g.course.year else None,
+                'year_name': g.course.year.name if g.course and g.course.year else None,
             }
             for g in groups
         ]
@@ -1494,10 +1430,107 @@ class DesktopSubscriptionsSimpleView(APIView):
 
         results = [
             {
+                'subscription_id': sub.id,
+                'coursegroup_id': sub.course_group.id if sub.course_group else None,
+                'student': build_student(sub.student)
+            }
+            for sub in qs
+        ]
+
+        # Simple pagination controlled by ?per_page= and ?page=
+        try:
+            per_page = int(request.query_params.get('per_page', 2))
+            if per_page <= 0:
+                per_page = 50
+        except (ValueError, TypeError):
+            per_page = 50
+
+        try:
+            page = int(request.query_params.get('page', 1))
+            if page <= 0:
+                page = 1
+        except (ValueError, TypeError):
+            page = 1
+
+        total = len(results)
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_items = results[start:end]
+        total_pages = (total + per_page - 1) // per_page if per_page else 1
+
+        return Response({
+            'count': total,
+            'per_page': per_page,
+            'page': page,
+            'total_pages': total_pages,
+            'subscriptions': page_items
+        })
+
+
+
+class DashboardSubscriptionsSimpleView(generics.ListAPIView):
+    permission_classes = [IsAuthenticatedOrPrivateToken]
+    serializer_class = SubscriptionSimpleSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['student', 'course', 'course_group', 'is_confirmed']
+    search_fields = [
+        'student__name', 'student__user__username', 'student__parent_phone',
+        'course__title', 'course_group__teacher__name'
+    ]
+    ordering_fields = ['created_at', 'confirmed_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = CourseGroupSubscription.objects.select_related(
+            'student', 'student__year', 'student__type_education',
+            'course_group', 'course_group__teacher'
+        ).prefetch_related(
+            'course_group__times'
+        )
+        # Filters
+        course_group_id = self.request.query_params.get('course_group_id') or self.request.query_params.get('course_group')
+        if course_group_id:
+            qs = qs.filter(course_group_id=course_group_id)
+        course_id = self.request.query_params.get('course_id') or self.request.query_params.get('course')
+        if course_id:
+            qs = qs.filter(course_id=course_id)
+        teacher_id = self.request.query_params.get('teacher_id') or self.request.query_params.get('teacher')
+        if teacher_id:
+            qs = qs.filter(course_group__teacher_id=teacher_id)
+        is_confirmed = self.request.query_params.get('is_confirmed')
+        if is_confirmed is not None:
+            val = is_confirmed.lower() in ['true', '1', 'yes']
+            qs = qs.filter(is_confirmed=val)
+
+        def build_student(s):
+            return {
+                'id': s.id,
+                'user': s.user.id if s.user else None,
+                'name': s.name,
+                'parent_phone': s.parent_phone,
+                'type_education_id': s.type_education.id if s.type_education else None,
+                'type_education_name': s.type_education.name if s.type_education else None,
+                'year_id': s.year.id if s.year else None,
+                'year_name': s.year.name if s.year else None,
+                'division': s.division,
+                'government': s.government,
+                'code': s.code,
+                'by_code': s.by_code,
+                'active': s.active,
+                'block': s.block,
+                'points': s.points,
+                'jwt_token': s.jwt_token,
+                'is_admin': s.is_admin,
+                'updated': s.updated,
+                'created': s.created,
+                'username': s.user.username if s.user else None,
+            }
+
+        results = [
+            {
                 'coursegroup_id': sub.course_group.id if sub.course_group else None,
                 'student': build_student(sub.student)
             }
             for sub in qs
         ]
         return Response({'count': len(results), 'subscriptions': results})
-

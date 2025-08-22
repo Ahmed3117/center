@@ -297,13 +297,59 @@ class DashboardSubscriptionsSimpleView(generics.ListAPIView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return CourseGroupSubscription.objects.select_related(
+        qs = CourseGroupSubscription.objects.select_related(
             'student', 'student__year', 'student__type_education',
-            'course', 'course__year', 'course__type_education',
             'course_group', 'course_group__teacher'
         ).prefetch_related(
             'course_group__times'
-        ).all()
+        )
+        # Filters
+        course_group_id = self.request.query_params.get('course_group_id') or self.request.query_params.get('course_group')
+        if course_group_id:
+            qs = qs.filter(course_group_id=course_group_id)
+        course_id = self.request.query_params.get('course_id') or self.request.query_params.get('course')
+        if course_id:
+            qs = qs.filter(course_id=course_id)
+        teacher_id = self.request.query_params.get('teacher_id') or self.request.query_params.get('teacher')
+        if teacher_id:
+            qs = qs.filter(course_group__teacher_id=teacher_id)
+        is_confirmed = self.request.query_params.get('is_confirmed')
+        if is_confirmed is not None:
+            val = is_confirmed.lower() in ['true', '1', 'yes']
+            qs = qs.filter(is_confirmed=val)
+
+        def build_student(s):
+            return {
+                'id': s.id,
+                'user': s.user.id if s.user else None,
+                'name': s.name,
+                'parent_phone': s.parent_phone,
+                'type_education_id': s.type_education.id if s.type_education else None,
+                'type_education_name': s.type_education.name if s.type_education else None,
+                'year_id': s.year.id if s.year else None,
+                'year_name': s.year.name if s.year else None,
+                'division': s.division,
+                'government': s.government,
+                'code': s.code,
+                'by_code': s.by_code,
+                'active': s.active,
+                'block': s.block,
+                'points': s.points,
+                'jwt_token': s.jwt_token,
+                'is_admin': s.is_admin,
+                'updated': s.updated,
+                'created': s.created,
+                'username': s.user.username if s.user else None,
+            }
+
+        results = [
+            {
+                'coursegroup_id': sub.course_group.id if sub.course_group else None,
+                'student': build_student(sub.student)
+            }
+            for sub in qs
+        ]
+        return Response({'count': len(results), 'subscriptions': results})
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -1369,4 +1415,89 @@ class RequestLogDeleteView(APIView):
                 "end_date": str(query_filter.get('timestamp__lte'))
             }
         })
+
+
+
+
+############################## desktop needed endpoints ##################
+
+class DesktopTeachersSimpleView(APIView):
+    permission_classes = [IsAuthenticatedOrPrivateToken]
+    def get(self, request):
+        teachers = Teacher.objects.all().only('id', 'name')
+        data = [{'id': t.id, 'name': t.name} for t in teachers]
+        return Response({'teachers': data})
+
+class DesktopCourseGroupsSimpleView(APIView):
+    permission_classes = [IsAuthenticatedOrPrivateToken]
+    def get(self, request):
+        groups = CourseGroup.objects.select_related('course', 'teacher').all()
+        data = [
+            {
+                'coursegroup_id': g.id,
+                'course_id': g.course.id if g.course else None,
+                'course_name': g.course.title if g.course else None,
+                'teacher_id': g.teacher.id if g.teacher else None,
+                'teacher_name': g.teacher.name if g.teacher else None,
+            }
+            for g in groups
+        ]
+        return Response({'coursegroups': data})
+
+class DesktopSubscriptionsSimpleView(APIView):
+    permission_classes = [IsAuthenticatedOrPrivateToken]
+    def get(self, request):
+        qs = CourseGroupSubscription.objects.select_related(
+            'student', 'student__year', 'student__type_education',
+            'course_group', 'course_group__course', 'course_group__teacher'
+        ).prefetch_related(
+            'course_group__times'
+        )
+        # Filters
+        course_group_id = request.query_params.get('course_group_id') or request.query_params.get('course_group')
+        if course_group_id:
+            qs = qs.filter(course_group_id=course_group_id)
+        course_id = request.query_params.get('course_id') or request.query_params.get('course')
+        if course_id:
+            qs = qs.filter(course_id=course_id)
+        teacher_id = request.query_params.get('teacher_id') or request.query_params.get('teacher')
+        if teacher_id:
+            qs = qs.filter(course_group__teacher_id=teacher_id)
+        is_confirmed = request.query_params.get('is_confirmed')
+        if is_confirmed is not None:
+            val = is_confirmed.lower() in ['true', '1', 'yes']
+            qs = qs.filter(is_confirmed=val)
+
+        def build_student(s):
+            return {
+                'id': s.id,
+                'user': s.user.id if s.user else None,
+                'name': s.name,
+                'parent_phone': s.parent_phone,
+                'type_education_id': s.type_education.id if s.type_education else None,
+                'type_education_name': s.type_education.name if s.type_education else None,
+                'year_id': s.year.id if s.year else None,
+                'year_name': s.year.name if s.year else None,
+                'division': s.division,
+                'government': s.government,
+                'code': s.code,
+                'by_code': s.by_code,
+                'active': s.active,
+                'block': s.block,
+                'points': s.points,
+                'jwt_token': s.jwt_token,
+                'is_admin': s.is_admin,
+                'updated': s.updated,
+                'created': s.created,
+                'username': s.user.username if s.user else None,
+            }
+
+        results = [
+            {
+                'coursegroup_id': sub.course_group.id if sub.course_group else None,
+                'student': build_student(sub.student)
+            }
+            for sub in qs
+        ]
+        return Response({'count': len(results), 'subscriptions': results})
 

@@ -33,7 +33,10 @@ from .views import (
     AboutPageView,
     FeatureListCreateView,
     FeatureRetrieveUpdateDestroyView,
-    dashboard_stats
+    dashboard_stats,
+    DesktopTeachersSimpleView,
+    DesktopCourseGroupsSimpleView,
+    DesktopSubscriptionsSimpleView,
 )
 
 urlpatterns = [
@@ -64,6 +67,11 @@ urlpatterns = [
     path('coursegroups/', DashboardCourseGroupsView.as_view(), name='dashboard-coursegroups'),
     path('subscriptions/', DashboardSubscriptionsView.as_view(), name='dashboard-subscriptions'),
     path('subscriptions-simple/', DashboardSubscriptionsSimpleView.as_view(), name='dashboard-subscriptions-simple'),
+
+    # Desktop simple endpoints (no pagination)
+    path('desktop/teachers-simple/', DesktopTeachersSimpleView.as_view(), name='desktop-teachers-simple'),
+    path('desktop/coursegroups-simple/', DesktopCourseGroupsSimpleView.as_view(), name='desktop-coursegroups-simple'),
+    path('desktop/subscriptions-simple/', DesktopSubscriptionsSimpleView.as_view(), name='desktop-subscriptions-simple'),
 
 
     # new

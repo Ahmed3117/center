@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 EducationLanguageType = (
     ('general', 'General'),
     ('languages', 'Languages'),
+    ('baccalaureate', 'Baccalaureate'),
 )
 
 class Year(models.Model):
